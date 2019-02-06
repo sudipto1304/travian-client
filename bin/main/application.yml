@@ -1,0 +1,35 @@
+server:
+  port: 4502
+spring:
+  application:
+    name: travian-client
+logging:
+  level:
+    root: WARN
+    com:
+      travian: INFO
+    org:
+      springframework:
+        security: DEBUG
+        web: DEBUG
+      hibernate: WARN
+      apache:
+        commons:
+          dbcp2: ERROR
+  pattern:
+    console: '%d{yyyy-MMM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{15} - %msg%n'
+travian-service:
+  ribbon:
+    listOfServers: http://localhost:4501
+feign:
+  hystrix:
+    enabled: false
+hystrix:
+  command:
+    default:
+      execution:
+        timeout:
+          enabled: false
+        isolation:
+          thread:
+            timeoutInMilliseconds: 60000
