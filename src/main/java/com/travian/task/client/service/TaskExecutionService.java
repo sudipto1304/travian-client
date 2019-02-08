@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 
 import com.travian.task.client.config.ServiceClient;
 import com.travian.task.client.request.AccountInfoRequest;
+import com.travian.task.client.request.AccountInfoWL;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
+import com.travian.task.client.response.Adventure;
 import com.travian.task.client.response.Village;
 import com.travian.task.client.util.BaseProfile;
 
@@ -59,6 +61,11 @@ public class TaskExecutionService {
 	private void executeTaskList(Map<String, String> cookies, AccountInfoResponse accountResponse, String host, String userId) {
 		//1. check for pending adventure
 		if(accountResponse.getPendingAdventure()>0) {
+			AccountInfoWL adventureRequest = new AccountInfoWL();
+			adventureRequest.setCookies(cookies);
+			adventureRequest.setServerUri(host);
+			adventureRequest.setUserId(userId);
+			List<Adventure> adventures = client.getAdventures(adventureRequest);
 			
 		}
 		//2. get village info

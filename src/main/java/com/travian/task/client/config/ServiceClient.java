@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
 import com.travian.task.client.request.AccountInfoRequest;
+import com.travian.task.client.request.AccountInfoWL;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
+import com.travian.task.client.response.Adventure;
 import com.travian.task.client.response.Village;
 
 @FeignClient(name = "travian-service")
@@ -23,5 +25,8 @@ public interface ServiceClient {
 	
 	@RequestMapping(method = RequestMethod.GET, path = "/village/getInfo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	List<Village> getVillageInfo(@RequestBody VillageInfoRequest request);
+	
+	@RequestMapping(method = RequestMethod.GET, path = "/account/getAdventureList", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	List<Adventure> getAdventures(@RequestBody AccountInfoWL request);
 
 }
