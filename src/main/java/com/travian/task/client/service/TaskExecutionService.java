@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.travian.task.client.config.ServiceClient;
 import com.travian.task.client.request.AccountInfoRequest;
-import com.travian.task.client.request.AccountInfoWL;
+import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
@@ -47,13 +47,13 @@ public class TaskExecutionService {
 					} else {
 						if (Log.isInfoEnabled())
 							Log.info("Cookies present::getting account info without login");
-						AccountInfoWL accountInfoRequest = new AccountInfoWL();
+						GameWorld accountInfoRequest = new GameWorld();
 						accountInfoRequest.setCookies(cookies);
-						accountInfoRequest.setServerUri(request.getServerUri());
+						accountInfoRequest.setHost(request.getHost());
 						accountInfoRequest.setUserId(request.getUserId());
 						accountResponse = client.getAccountInfo(accountInfoRequest);
 					}
-					executeTaskList(cookies, accountResponse, request.getServerUri(), request.getUserId());
+					executeTaskList(cookies, accountResponse, request.getHost(), request.getUserId());
 
 					Thread.sleep(2000 * 60);
 				} catch (Exception e) {
@@ -84,9 +84,9 @@ public class TaskExecutionService {
 			if (Log.isInfoEnabled())
 				Log.info("Pending adventure count is ::" + accountResponse.getPendingAdventure()
 						+ "--Hero is in home::Initiating adventure");
-			AccountInfoWL adventureRequest = new AccountInfoWL();
+			GameWorld adventureRequest = new GameWorld();
 			adventureRequest.setCookies(cookies);
-			adventureRequest.setServerUri(host);
+			adventureRequest.setHost(host);
 			adventureRequest.setUserId(userId);
 			List<Adventure> adventures = client.getAdventures(adventureRequest);
 			Status status = AccountUtils.initiateAdventure(adventures, cookies, host, client);
