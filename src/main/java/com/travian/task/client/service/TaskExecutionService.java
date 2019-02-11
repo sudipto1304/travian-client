@@ -2,6 +2,7 @@ package com.travian.task.client.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -17,6 +18,7 @@ import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
 import com.travian.task.client.response.Status;
+import com.travian.task.client.response.Task;
 import com.travian.task.client.response.Village;
 import com.travian.task.client.util.AccountUtils;
 import com.travian.task.client.util.BaseProfile;
@@ -28,6 +30,9 @@ public class TaskExecutionService {
 
 	@Autowired
 	private ServiceClient client;
+	
+	@Autowired
+	private AsyncService service;
 
 	@Async
 	public void execute(AccountInfoRequest request) throws InterruptedException {
@@ -98,6 +103,16 @@ public class TaskExecutionService {
 		// 2. get village info
 		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
 				.collect(Collectors.toList());
+		List<Task> taskes = villageList.stream().map(p->{
+				try {
+					return service.getTask(p.substring(p.indexOf("="), p.length()-1)).get();
+				} catch (InterruptedException | ExecutionException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				return null;
+			}).collect(Collectors.toList());
+		
 		VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
 		villageInfoRequest.setCookies(cookies);
 		villageInfoRequest.setHost(host);
