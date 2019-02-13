@@ -30,7 +30,7 @@ public class TaskExecutionService {
 
 	@Autowired
 	private ServiceClient client;
-	
+
 	@Autowired
 	private AsyncService service;
 
@@ -65,14 +65,12 @@ public class TaskExecutionService {
 					if (Log.isErrorEnabled())
 						Log.error("", e);
 				}
-			}else {
+			} else {
 				if (Log.isErrorEnabled()) {
 					Log.error("::::isExecutionEnable false:::::execution paused" + System.currentTimeMillis());
 				}
 			}
 		}
-
-		
 
 	}
 
@@ -82,9 +80,32 @@ public class TaskExecutionService {
 
 	private void executeTaskList(Map<String, String> cookies, AccountInfoResponse accountResponse, String host,
 			String userId) {
+		// 1. check for pending adventure
+		this.initiateAdventure(cookies, accountResponse, host, userId);
+		// 2. get village info
+		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
+				.collect(Collectors.toList());
+		List<Task> tasks = villageList.stream().map(p -> {
+			try {
+				return service.getTask(p.substring(p.indexOf("=")+1, p.length() - 1)).get();
+			} catch (InterruptedException | ExecutionException e) {
+				if(Log.isErrorEnabled())
+					Log.error("", e);
+			}
+			return null;
+		}).collect(Collectors.toList());
+		List<Village> villages = this.getVillageList(cookies, villageList, host, userId);
+		if(tasks!=null && !tasks.isEmpty()) {
+			this.findAndExecuteTask(villages, tasks);
+		}
+		
+
+	}
+
+	private void initiateAdventure(Map<String, String> cookies, AccountInfoResponse accountResponse, String host,
+			String userId) {
 		if (Log.isInfoEnabled())
 			Log.info("Pending adventure::" + accountResponse.getPendingAdventure());
-		// 1. check for pending adventure
 		if (accountResponse.getPendingAdventure() > 0 && "in home village".equals(accountResponse.getHeroStatus())) {
 			if (Log.isInfoEnabled())
 				Log.info("Pending adventure count is ::" + accountResponse.getPendingAdventure()
@@ -100,19 +121,10 @@ public class TaskExecutionService {
 					Log.info("Adventure initiated");
 			}
 		}
-		// 2. get village info
-		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
-				.collect(Collectors.toList());
-		List<Task> taskes = villageList.stream().map(p->{
-				try {
-					return service.getTask(p.substring(p.indexOf("="), p.length()-1)).get();
-				} catch (InterruptedException | ExecutionException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				return null;
-			}).collect(Collectors.toList());
-		
+	}
+
+	private List<Village> getVillageList(Map<String, String> cookies, List<String> villageList, String host,
+			String userId) {
 		VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
 		villageInfoRequest.setCookies(cookies);
 		villageInfoRequest.setHost(host);
@@ -120,10 +132,14 @@ public class TaskExecutionService {
 		villageInfoRequest.setLink(villageList);
 		if (Log.isInfoEnabled())
 			Log.info("No of village:::" + villageList.size() + ":::villages link:::" + villageList);
-		List<Village> villages = client.getVillageInfo(villageInfoRequest);
+		List<Village> villages =  client.getVillageInfo(villageInfoRequest);
 		if (Log.isInfoEnabled())
 			Log.info("Number of village:::" + villages.size());
-
+		return villages;
+	}
+	
+	private void findAndExecuteTask(List<Village> villages, List<Task> tasks) {
+		
 	}
 
 }

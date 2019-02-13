@@ -1,0 +1,4 @@
+server:
+  port: 4502
+  servlet:
+    contextPath: /travian/client
