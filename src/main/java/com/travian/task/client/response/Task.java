@@ -12,8 +12,7 @@ public class Task implements Serializable{
 	private String villageId;
 	private String path;
 	private int level;
-	private int resourceId;
-	private int buildingId;
+	private int id;
 	private TaskType taskType;
 	private String taskId;
 

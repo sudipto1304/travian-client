@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.InitiateAdventureRequest;
+import com.travian.task.client.request.UpgradeRequest;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
@@ -21,20 +22,23 @@ import com.travian.task.client.response.Village;
 public interface ServiceClient {
 	
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/account/getInfo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian/service/account/getInfo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	AccountInfoResponse getAccountInfo(@RequestBody AccountInfoRequest request);
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/account/getInfoOnly", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian/service/account/getInfoOnly", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	AccountInfoResponse getAccountInfo(@RequestBody GameWorld request);
 	
 	
-	@RequestMapping(method = RequestMethod.GET, path = "/village/getInfo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.GET, path = "/travian/service/village/getInfo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	List<Village> getVillageInfo(@RequestBody VillageInfoRequest request);
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/account/getAdventureList", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian/service/account/getAdventureList", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	List<Adventure> getAdventures(@RequestBody GameWorld request);
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/account/hero/sendToAdventure", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian/service/account/hero/sendToAdventure", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Status initiateAdventure(@RequestBody InitiateAdventureRequest request);
+	
+	@RequestMapping(method = RequestMethod.POST, path = "/travian/service/upgrade/nextLevel", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	Status upgrade(@RequestBody UpgradeRequest request);
 
 }

@@ -15,9 +15,11 @@ import org.springframework.stereotype.Service;
 import com.travian.task.client.config.ServiceClient;
 import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.request.GameWorld;
+import com.travian.task.client.request.UpgradeRequest;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
+import com.travian.task.client.response.Building;
 import com.travian.task.client.response.Fields;
 import com.travian.task.client.response.Resource;
 import com.travian.task.client.response.Status;
@@ -25,6 +27,7 @@ import com.travian.task.client.response.Task;
 import com.travian.task.client.response.TaskType;
 import com.travian.task.client.response.Village;
 import com.travian.task.client.util.AccountUtils;
+import com.travian.task.client.util.AppConstant;
 import com.travian.task.client.util.BaseProfile;
 
 @Service
@@ -52,18 +55,17 @@ public class TaskExecutionService {
 						accountResponse = client.getAccountInfo(request);
 						if (Log.isDebugEnabled())
 							Log.debug("received AccountInfoResponse:::" + accountResponse);
+						BaseProfile.profile.put("HOST", request.getHost());
+						BaseProfile.profile.put("USERID", request.getUserId());
+						BaseProfile.profile.put("COOKIES", accountResponse.getCookies());
 						cookies = accountResponse.getCookies();
 					} else {
 						if (Log.isInfoEnabled())
 							Log.info("Cookies present::getting account info without login");
 						GameWorld accountInfoRequest = new GameWorld();
-						accountInfoRequest.setCookies(cookies);
-						accountInfoRequest.setHost(request.getHost());
-						accountInfoRequest.setUserId(request.getUserId());
 						accountResponse = client.getAccountInfo(accountInfoRequest);
 					}
-					executeTaskList(cookies, accountResponse, request.getHost(), request.getUserId());
-
+					executeTaskList(accountResponse);
 					Thread.sleep(2000 * 60);
 				} catch (Exception e) {
 					if (Log.isErrorEnabled())
@@ -82,10 +84,9 @@ public class TaskExecutionService {
 		BaseProfile.isExecutionEnable = enable;
 	}
 
-	private void executeTaskList(Map<String, String> cookies, AccountInfoResponse accountResponse, String host,
-			String userId) {
+	private void executeTaskList(AccountInfoResponse accountResponse) {
 		// 1. check for pending adventure
-		this.initiateAdventure(cookies, accountResponse, host, userId);
+		this.initiateAdventure(accountResponse);
 		// 2. get village info
 		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
 				.collect(Collectors.toList());
@@ -102,7 +103,7 @@ public class TaskExecutionService {
 			}
 		});
 		
-		List<Village> villages = this.getVillageList(cookies, villageList, host, userId);
+		List<Village> villages = this.getVillageList(villageList);
 		if(!tasks.isEmpty()) {
 			this.findAndExecuteTask(villages, tasks);
 		}
@@ -110,8 +111,7 @@ public class TaskExecutionService {
 
 	}
 
-	private void initiateAdventure(Map<String, String> cookies, AccountInfoResponse accountResponse, String host,
-			String userId) {
+	private void initiateAdventure(AccountInfoResponse accountResponse) {
 		if (Log.isInfoEnabled())
 			Log.info("Pending adventure::" + accountResponse.getPendingAdventure());
 		if (accountResponse.getPendingAdventure() > 0 && "in home village".equals(accountResponse.getHeroStatus())) {
@@ -119,11 +119,8 @@ public class TaskExecutionService {
 				Log.info("Pending adventure count is ::" + accountResponse.getPendingAdventure()
 						+ "--Hero is in home::Initiating adventure");
 			GameWorld adventureRequest = new GameWorld();
-			adventureRequest.setCookies(cookies);
-			adventureRequest.setHost(host);
-			adventureRequest.setUserId(userId);
 			List<Adventure> adventures = client.getAdventures(adventureRequest);
-			Status status = AccountUtils.initiateAdventure(adventures, cookies, host, client);
+			Status status = AccountUtils.initiateAdventure(adventures, client);
 			if ("SUCCESS".equals(status.getStatus())) {
 				if (Log.isInfoEnabled())
 					Log.info("Adventure initiated");
@@ -131,12 +128,8 @@ public class TaskExecutionService {
 		}
 	}
 
-	private List<Village> getVillageList(Map<String, String> cookies, List<String> villageList, String host,
-			String userId) {
+	private List<Village> getVillageList(List<String> villageList) {
 		VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
-		villageInfoRequest.setCookies(cookies);
-		villageInfoRequest.setHost(host);
-		villageInfoRequest.setUserId(userId);
 		villageInfoRequest.setLink(villageList);
 		if (Log.isInfoEnabled())
 			Log.info("No of village:::" + villageList.size() + ":::villages link:::" + villageList);
@@ -151,22 +144,75 @@ public class TaskExecutionService {
 			Task task = tasks.get(e.getVillageId());
 			if(Log.isInfoEnabled())
 				Log.info("Task to be executed:::"+task);
-			if(task.getTaskType()==TaskType.RESOURCE_UPDATE) {
+			if(task!=null && (task.getTaskType()==TaskType.RESOURCE_UPDATE || task.getTaskType()==TaskType.BUILDING_UPDATE)) {
 					Resource resource = e.getResource();
-					Fields field = searchResourceField(task.getResourceId(), resource.getFields());
+					Fields field = searchResourceField(task.getId(), resource.getFields());
+					if(field==null) {
+						field = new Fields();
+						Building building = searchBuildingField(task.getId(), e.getBuildings());
+						field.setNextLevelClay(building.getNextLevelClay());
+						field.setNextLevelCrop(building.getNextLevelCrop());
+						field.setNextLevelIron(building.getNextLevelIron());
+						field.setNextLevelWood(building.getNextLevelWood());
+						field.setId(building.getId());
+					}
+					if(resource.getWood() > field.getNextLevelWood() && resource.getClay() > field.getNextLevelClay() && resource.getIron() > field.getNextLevelIron() && resource.getCrop() > field.getNextLevelCrop()) {
+						if(Log.isInfoEnabled())
+							Log.info("Enough resources are present to complete the task");
+						if(e.getOngoingConstruction()==AppConstant.MAX_UPGRADE_TASK) {
+							if(Log.isInfoEnabled())
+								Log.info("Maximum number of tasks are already in progress:::unable to execute task now");
+							return;
+						}else {
+							UpgradeRequest resourceUpgradeRequest = new UpgradeRequest();
+							resourceUpgradeRequest.setVillageId(e.getVillageId());
+							resourceUpgradeRequest.setId(String.valueOf(field.getId()));
+							Status status = client.upgrade(resourceUpgradeRequest);
+							int constructionCount = Integer.valueOf(status.getStatus());
+							if(constructionCount>e.getOngoingConstruction()) {
+								if(Log.isInfoEnabled())
+									Log.info("Upgrade done successfully");
+								service.completeTask(e.getVillageId(), task.getTaskId());
+							}
+						}
+					}else {
+						if(Log.isInfoEnabled())
+							Log.info("Not enough resources to complete the task");
+						return;
+					}
 			}
 		});
 	}
 	
+	
+	
+	
 	private Fields searchResourceField(int id, List<Fields> fields) {
 		int start=0;
 		int end = fields.size()-1;
-		int mid  = start+(end-1)/2;
 		
 		while(end>=start) {
+			int mid  = (start+end)/2;
 			if(fields.get(mid).getId()==id) {
 				return fields.get(mid);
 			}else if(fields.get(mid).getId()>id) {
+				end = mid-1;
+			}else {
+				start = mid+1;
+			}
+		}
+		return null;
+	}
+	
+	private Building searchBuildingField(int id, List<Building> building) {
+		int start=0;
+		int end = building.size()-1;
+		
+		while(end>=start) {
+			int mid  = (start+end)/2;
+			if(building.get(mid).getId()==id) {
+				return building.get(mid);
+			}else if(building.get(mid).getId()>id) {
 				end = mid-1;
 			}else {
 				start = mid+1;

@@ -30,5 +30,11 @@ public class AsyncService {
 		}
 		return null;
 	}
+	
+	
+	@Async
+	public void completeTask(String villageId, String taskId){
+		client.completeTask(villageId, taskId);
+	}
 
 }

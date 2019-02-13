@@ -11,7 +11,7 @@ import lombok.ToString;
 @ToString
 public class VillageInfoRequest extends GameWorld implements Serializable{
 	
-	private Map<String, String> cookies;
+
 	private List<String> link;
 
 }

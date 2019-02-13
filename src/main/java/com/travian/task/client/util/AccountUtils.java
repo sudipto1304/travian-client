@@ -13,12 +13,10 @@ import com.travian.task.client.response.Status;
 public class AccountUtils {
 	
 	
-	public static Status initiateAdventure(List<Adventure> adventures, Map<String, String> cookies, String host, ServiceClient client) {
+	public static Status initiateAdventure(List<Adventure> adventures, ServiceClient client) {
 		InitiateAdventureRequest adventureStartRequest = new InitiateAdventureRequest();
 		adventureStartRequest.setA("1");
-		adventureStartRequest.setCookies(cookies);
 		adventureStartRequest.setFrom("list");
-		adventureStartRequest.setHost(host);
 		String link = adventures.get(0).getLink();
 		link = link.substring(0, link.indexOf("?"));
 		adventureStartRequest.setPath("/"+link);
