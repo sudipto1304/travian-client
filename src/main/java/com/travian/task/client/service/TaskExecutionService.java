@@ -1,5 +1,6 @@
 package com.travian.task.client.service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -17,8 +18,11 @@ import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
+import com.travian.task.client.response.Fields;
+import com.travian.task.client.response.Resource;
 import com.travian.task.client.response.Status;
 import com.travian.task.client.response.Task;
+import com.travian.task.client.response.TaskType;
 import com.travian.task.client.response.Village;
 import com.travian.task.client.util.AccountUtils;
 import com.travian.task.client.util.BaseProfile;
@@ -85,17 +89,21 @@ public class TaskExecutionService {
 		// 2. get village info
 		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
 				.collect(Collectors.toList());
-		List<Task> tasks = villageList.stream().map(p -> {
+		Map<String, Task> tasks = new HashMap<String, Task>();
+		villageList.forEach(e->{
 			try {
-				return service.getTask(p.substring(p.indexOf("=")+1, p.length() - 1)).get();
-			} catch (InterruptedException | ExecutionException e) {
+				tasks.put(e.substring(e.indexOf("=")+1, e.length() - 1), service.getTask(e.substring(e.indexOf("=")+1, e.length() - 1)).get());
+			} catch (InterruptedException e1) {
 				if(Log.isErrorEnabled())
-					Log.error("", e);
+					Log.error("", e1);
+			} catch (ExecutionException e1) {
+				if(Log.isErrorEnabled())
+					Log.error("", e1);
 			}
-			return null;
-		}).collect(Collectors.toList());
+		});
+		
 		List<Village> villages = this.getVillageList(cookies, villageList, host, userId);
-		if(tasks!=null && !tasks.isEmpty()) {
+		if(!tasks.isEmpty()) {
 			this.findAndExecuteTask(villages, tasks);
 		}
 		
@@ -138,8 +146,33 @@ public class TaskExecutionService {
 		return villages;
 	}
 	
-	private void findAndExecuteTask(List<Village> villages, List<Task> tasks) {
+	private void findAndExecuteTask(List<Village> villages, Map<String, Task> tasks) {
+		villages.forEach(e->{
+			Task task = tasks.get(e.getVillageId());
+			if(Log.isInfoEnabled())
+				Log.info("Task to be executed:::"+task);
+			if(task.getTaskType()==TaskType.RESOURCE_UPDATE) {
+					Resource resource = e.getResource();
+					Fields field = searchResourceField(task.getResourceId(), resource.getFields());
+			}
+		});
+	}
+	
+	private Fields searchResourceField(int id, List<Fields> fields) {
+		int start=0;
+		int end = fields.size()-1;
+		int mid  = start+(end-1)/2;
 		
+		while(end>=start) {
+			if(fields.get(mid).getId()==id) {
+				return fields.get(mid);
+			}else if(fields.get(mid).getId()>id) {
+				end = mid-1;
+			}else {
+				start = mid+1;
+			}
+		}
+		return null;
 	}
 
 }
