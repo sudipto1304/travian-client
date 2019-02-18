@@ -1,6 +1,8 @@
 spring:
   application:
     name: travian-client
+  jmx:
+    default-domain: travian-client
 logging:
   level:
     root: WARN

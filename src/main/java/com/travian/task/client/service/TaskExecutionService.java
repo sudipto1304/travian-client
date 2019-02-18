@@ -3,6 +3,7 @@ package com.travian.task.client.service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -40,13 +41,18 @@ public class TaskExecutionService {
 
 	@Autowired
 	private AsyncService service;
+	
+	private int errorCount = 0;
+	private int pauseCount = 0;
 
 	@Async
 	public void execute(AccountInfoRequest request) throws InterruptedException {
 		Map<String, String> cookies = null;
 
+
 		while (true) {
 			if (BaseProfile.isExecutionEnable) {
+				pauseCount=0; //reset pause count if incremented
 				try {
 					AccountInfoResponse accountResponse = null;
 					if (cookies == null) {
@@ -66,14 +72,30 @@ public class TaskExecutionService {
 						accountResponse = client.getAccountInfo(accountInfoRequest);
 					}
 					executeTaskList(accountResponse);
-					Thread.sleep(2000 * 60);
+					Random r = new Random();
+					int rand =  r.ints(60, (100 + 1)).limit(1).findFirst().getAsInt();
+					if(Log.isInfoEnabled())
+						Log.info("Next call in ::"+rand+" sec");
+					Thread.sleep(2000 * rand);
 				} catch (Exception e) {
 					if (Log.isErrorEnabled())
 						Log.error("", e);
+					errorCount++;
+					cookies = null;
+					if(errorCount>=10) {
+						break;
+					}
 				}
 			} else {
+				pauseCount++;
 				if (Log.isErrorEnabled()) {
 					Log.error("::::isExecutionEnable false:::::execution paused" + System.currentTimeMillis());
+				}
+				Thread.sleep(1000 * 60);
+				if(pauseCount>60) {
+					if (Log.isErrorEnabled()) 
+						Log.error("Execution is paused more than 60 mins::stopping execution");
+					break;
 				}
 			}
 		}
@@ -108,7 +130,7 @@ public class TaskExecutionService {
 			this.findAndExecuteTask(villages, tasks);
 		}
 		
-
+		errorCount=0; //Execution success, reset error count if incremented
 	}
 
 	private void initiateAdventure(AccountInfoResponse accountResponse) {

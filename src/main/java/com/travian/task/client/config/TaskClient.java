@@ -11,9 +11,9 @@ import com.travian.task.client.response.Task;
 @FeignClient(name = "travian-task-list")
 public interface TaskClient {
 
-	@RequestMapping(method = RequestMethod.GET, path = "/travian/task/getTask/{villageId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.GET, path = "/travian-task-queue/task/getTask/{villageId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Task getTask(@PathVariable("villageId") String villageId);
 	
-	@RequestMapping(method = RequestMethod.GET, path = "/travian/task/completeTask/{villageId}/{taskId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.GET, path = "/travian-task-queue/task/completeTask/{villageId}/{taskId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Task completeTask(@PathVariable("villageId") String villageId, @PathVariable("taskId") String taskId);
 }
