@@ -11,11 +11,13 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.InitiateAdventureRequest;
+import com.travian.task.client.request.TroopTrainRequest;
 import com.travian.task.client.request.UpgradeRequest;
 import com.travian.task.client.request.VillageInfoRequest;
 import com.travian.task.client.response.AccountInfoResponse;
 import com.travian.task.client.response.Adventure;
 import com.travian.task.client.response.Status;
+import com.travian.task.client.response.TroopTrainResponse;
 import com.travian.task.client.response.Village;
 
 @FeignClient(name = "travian-service")
@@ -40,5 +42,8 @@ public interface ServiceClient {
 	
 	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/upgrade/nextLevel", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Status upgrade(@RequestBody UpgradeRequest request);
+	
+	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/troop/training", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	TroopTrainResponse trainTroop(@RequestBody TroopTrainRequest request);
 
 }

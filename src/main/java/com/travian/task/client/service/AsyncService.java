@@ -1,5 +1,6 @@
 package com.travian.task.client.service;
 
+import java.util.List;
 import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.travian.task.client.config.TaskClient;
 import com.travian.task.client.response.Task;
+import com.travian.task.client.response.TroopTrain;
 
 @Service
 public class AsyncService {
@@ -35,6 +37,19 @@ public class AsyncService {
 	@Async
 	public void completeTask(String villageId, String taskId){
 		client.completeTask(villageId, taskId);
+	}
+	
+	@Async
+	public void skipTask(String villageId, String taskId){
+		client.skipTask(villageId, taskId);
+	}
+	
+	public List<TroopTrain> getTrainTasks(){
+		return client.getTrainTask();
+	}
+	@Async
+	public void updateTroopCount(List<TroopTrain> request){
+		client.updateTrainingCount(request);
 	}
 
 }

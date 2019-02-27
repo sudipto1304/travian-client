@@ -1,13 +1,13 @@
-server:
-  port: 4502
 spring:
   application:
     name: travian-client
+  jmx:
+    default-domain: travian-client
 logging:
   level:
     root: WARN
     com:
-      travian: DEBUG
+      travian: INFO
     org:
       springframework:
         security: DEBUG
@@ -18,9 +18,14 @@ logging:
           dbcp2: ERROR
   pattern:
     console: '%d{yyyy-MMM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{15} - %msg%n'
+    file: '%d{yyyy-MMM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{15} - %msg%n'
+  file: /usr/local/log/travian-client.log⁩
 travian-service:
   ribbon:
     listOfServers: http://localhost:4501
+travian-task-list:
+  ribbon:
+    listOfServers: http://localhost:4503
 feign:
   hystrix:
     enabled: false
@@ -34,7 +39,7 @@ hystrix:
           thread:
             timeoutInMilliseconds: 60000
 ribbon:
-  ReadTimeout : 60000
-  ConnectTimeout : 60000
+  ReadTimeout: 60000
+  ConnectTimeout: 60000
   eureka:
     enabled: false
