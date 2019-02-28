@@ -193,7 +193,8 @@ public class TaskExecutionService {
 									trainResponse.setLink(
 											"/build.php?newdid=" + e.getVillageId() + "&id=" + building.getId());
 									trainResponse.setTaskId(e.getTaskId());
-									troopTrainResponse.add(trainResponse);
+									if(trainResponse.getCount()>0)
+										troopTrainResponse.add(trainResponse);
 									break;
 								}
 							}
@@ -219,7 +220,8 @@ public class TaskExecutionService {
 					trainResponse.setCount(response.getCount());
 					trainResponse.setLink(e.getLink());
 					trainResponse.setTaskId(e.getTaskId());
-					troopTrainResponse.add(trainResponse);
+					if(trainResponse.getCount()>0)
+						troopTrainResponse.add(trainResponse);
 				}
 				service.updateTroopCount(troopTrainResponse);
 			} else {
