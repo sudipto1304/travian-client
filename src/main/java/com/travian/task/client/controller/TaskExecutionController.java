@@ -41,7 +41,7 @@ public class TaskExecutionController {
     })
 	@RequestMapping(value="/execute", method=RequestMethod.POST, produces=MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Status> execute(@RequestBody AccountInfoRequest request, HttpServletRequest servletRequest, @RequestHeader HttpHeaders headers) throws IOException, InterruptedException {
-		service.execute(request);
+		service.executeAsynchronously(request);
 		return new ResponseEntity<>(new Status("SUCCESS", 200), HttpStatus.CREATED);
 	}
 	
