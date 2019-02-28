@@ -19,10 +19,12 @@ public class GameWorld implements Serializable{
 	private String userId;
 	private Map<String, String> cookies;
 	
-	public GameWorld() {
-		this.host = (String) BaseProfile.profile.get("HOST");
-		this.userId = (String) BaseProfile.profile.get("USERID");
-		this.cookies = (Map<String, String>) BaseProfile.profile.get("COOKIES");
+	
+	public void setGameWorld(GameWorld gameWorld) {
+		this.host = gameWorld.getHost();
+		this.userId = gameWorld.getUserId();
+		this.cookies = gameWorld.getCookies();
+		
 	}
 
 }
