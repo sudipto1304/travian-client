@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import com.travian.task.client.config.ServiceClient;
 import com.travian.task.client.config.TaskClient;
 import com.travian.task.client.request.AccountInfoRequest;
+import com.travian.task.client.request.CelebrationRequest;
 import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.TroopTrainRequest;
 import com.travian.task.client.request.UpgradeRequest;
@@ -97,6 +98,7 @@ public class AsyncService implements Runnable {
 		int pauseCount = 0;
 		int errorCount = 0;
 		int troopTrainIntervalCount = 0;
+		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
 		while (true) {
 
 			pauseCount = 0; // reset pause count if incremented
@@ -120,12 +122,12 @@ public class AsyncService implements Runnable {
 				if (troopTrainIntervalCount == 15) {
 					if (Log.isInfoEnabled())
 						Log.info("Troop Train Count is " + troopTrainIntervalCount + " initiate troop train");
-					executeTaskList(accountResponse, true);
+					executeTaskList(accountResponse, true, celebrationMap);
 					troopTrainIntervalCount = 0;
 				} else {
 					if (Log.isInfoEnabled())
 						Log.info("Troop Train Count is " + troopTrainIntervalCount + " skip troop train");
-					executeTaskList(accountResponse, false);
+					executeTaskList(accountResponse, false, celebrationMap);
 					troopTrainIntervalCount++;
 				}
 				Random r = new Random();
@@ -152,7 +154,7 @@ public class AsyncService implements Runnable {
 		BaseProfile.isExecutionEnable = enable;
 	}
 
-	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop) {
+	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop, Map<String, Integer> celebrationMap) {
 		// 1. check for pending adventure
 		this.initiateAdventure(accountResponse);
 		// 2. get village info
@@ -168,7 +170,7 @@ public class AsyncService implements Runnable {
 		List<Village> villages = this.getVillageList(villageList);
 		Map<String, UpgradeStatus> upgradeStatus = null;
 		if (!tasks.isEmpty()) {
-			upgradeStatus = this.findAndExecuteTask(villages, tasks);
+			upgradeStatus = this.findAndExecuteTask(villages, tasks, celebrationMap);
 			if (Log.isInfoEnabled())
 				Log.info("upgradeStatus:::" + upgradeStatus);
 		}
@@ -285,9 +287,49 @@ public class AsyncService implements Runnable {
 		return villages;
 	}
 
-	private Map<String, UpgradeStatus> findAndExecuteTask(List<Village> villages, Map<String, Task> tasks) {
+	private Map<String, UpgradeStatus> findAndExecuteTask(List<Village> villages, Map<String, Task> tasks, Map<String, Integer> celebrationMap) {
 		final Map<String, UpgradeStatus> upgradeStatus = new HashMap<String, UpgradeStatus>();
 		villages.forEach(e -> {
+			//Check for celebration eligibility
+			if(e.isTownHallPresent()) {
+				if (Log.isInfoEnabled())
+					Log.info("TownHall Present");
+				Status status = null;
+				if(celebrationMap.containsKey(e.getVillageId())) {
+					int celebrationTime = celebrationMap.get(e.getVillageId());
+					if(celebrationTime<=0) {
+						if (Log.isInfoEnabled())
+							Log.info("celebration counter::"+celebrationTime+" for vilalgeId::"+e.getVillageId()+"::Going to check for active celebration");
+						status = initiateCelebration(e);
+					}else {
+						if (Log.isInfoEnabled())
+							Log.info("celebration counter::"+celebrationTime+" for vilalgeId::"+e.getVillageId()+"::skip check for active celebration");
+						celebrationMap.put(e.getVillageId(), celebrationMap.get(e.getVillageId())-1);
+					}
+				}else {
+					status = initiateCelebration(e);
+				}
+				
+				if(status.getStatusCode()==400) {
+					if("NOT.ENOUGH.RESOURCE".equals(status.getStatus())) {
+						celebrationMap.put(e.getVillageId(), 0); //Checking again next time
+						if (Log.isInfoEnabled())
+							Log.info("not enough resource to initiate celebration:::Waiting for enough resource::skipping all tasks");
+						return;
+					}else {
+						celebrationMap.put(e.getVillageId(), 60); //Checking again after around 2 hrs
+						if (Log.isInfoEnabled())
+							Log.info("Celebration is going on::Not skipping tasks");
+					}
+				}else if(status.getStatusCode()==200) {
+					celebrationMap.put(e.getVillageId(), 150); //Checking again after around 5 hrs
+					if (Log.isInfoEnabled())
+						Log.info("Celebration initiated::end time::"+status.getStatus());
+				}
+				
+			}
+			
+			
 			Task task = tasks.get(e.getVillageId());
 			try {
 
@@ -391,6 +433,17 @@ public class AsyncService implements Runnable {
 			}
 		}
 		return null;
+	}
+	
+	
+	private Status initiateCelebration(Village village) {
+		int townHallId = village.getThId();
+		CelebrationRequest celebrationRequest = new CelebrationRequest();
+		celebrationRequest.setGameWorld(this.gameWorld);
+		celebrationRequest.setThId(String.valueOf(townHallId));
+		celebrationRequest.setVillageId(village.getVillageId());
+		return serviceClient.initiateCelebration(celebrationRequest);
+		
 	}
 
 }

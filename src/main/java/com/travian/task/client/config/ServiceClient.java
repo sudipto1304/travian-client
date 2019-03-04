@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
 import com.travian.task.client.request.AccountInfoRequest;
+import com.travian.task.client.request.CelebrationRequest;
 import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.InitiateAdventureRequest;
 import com.travian.task.client.request.TroopTrainRequest;
@@ -45,5 +46,8 @@ public interface ServiceClient {
 	
 	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/troop/training", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	TroopTrainResponse trainTroop(@RequestBody TroopTrainRequest request);
+	
+	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/village/initiateCelebration", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	Status initiateCelebration(@RequestBody CelebrationRequest request);
 
 }
