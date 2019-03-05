@@ -17,6 +17,7 @@ public class GameWorld implements Serializable{
 	private String host;
 	private String path;
 	private String userId;
+	private String userUUID;
 	private Map<String, String> cookies;
 	
 	
@@ -24,6 +25,7 @@ public class GameWorld implements Serializable{
 		this.host = gameWorld.getHost();
 		this.userId = gameWorld.getUserId();
 		this.cookies = gameWorld.getCookies();
+		this.userUUID = gameWorld.getUserUUID();
 		
 	}
 

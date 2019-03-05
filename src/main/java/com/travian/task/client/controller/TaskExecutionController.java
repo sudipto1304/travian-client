@@ -53,7 +53,7 @@ public class TaskExecutionController {
     })
 	@RequestMapping(value="/toggleExecution/{enableExecution}", method=RequestMethod.GET, produces=MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Status> toggleExecution(@PathVariable("enableExecution") String enableExecution, HttpServletRequest servletRequest, @RequestHeader HttpHeaders headers)  {
-		service.toggleExecution(Boolean.valueOf(enableExecution));
+		//service.toggleExecution(Boolean.valueOf(enableExecution));
 		return new ResponseEntity<>(new Status("SUCCESS", 200), HttpStatus.CREATED);
 	}
 

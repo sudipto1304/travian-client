@@ -42,6 +42,8 @@ import com.travian.task.client.util.BaseProfile;
 @Scope("prototype")
 public class AsyncService implements Runnable {
 	private static final Logger Log = LoggerFactory.getLogger(AsyncService.class);
+	
+	
 
 	@Autowired
 	private TaskClient taskClient;
@@ -53,7 +55,7 @@ public class AsyncService implements Runnable {
 	private ServiceClient serviceClient;
 
 	public Task getTask(String villageId) {
-		Task task = taskClient.getTask(villageId);
+		Task task = taskClient.getTask(this.gameWorld.getUserUUID(), villageId);
 		try {
 			return task;
 		} catch (Exception e) {
@@ -76,7 +78,7 @@ public class AsyncService implements Runnable {
 	}
 
 	public List<TroopTrain> getTrainTasks() {
-		return taskClient.getTrainTask();
+		return taskClient.getTrainTask(this.gameWorld.getUserUUID());
 	}
 
 	public void updateTroopCount(List<TroopTrain> request) {
@@ -100,7 +102,8 @@ public class AsyncService implements Runnable {
 		int troopTrainIntervalCount = 0;
 		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
 		while (true) {
-
+			Random r = new Random();
+			int rand = r.ints(60, (100 + 1)).limit(1).findFirst().getAsInt();
 			pauseCount = 0; // reset pause count if incremented
 			try {
 				AccountInfoResponse accountResponse = null;
@@ -113,6 +116,9 @@ public class AsyncService implements Runnable {
 					gameWorld.setCookies( accountResponse.getCookies());
 					gameWorld.setHost(request.getHost());
 					gameWorld.setUserId(request.getUserId());
+					gameWorld.setUserUUID(request.getUserUUID());
+					if (Log.isInfoEnabled())
+						Log.info("Game World Data:::"+gameWorld);
 				} else {
 					if (Log.isInfoEnabled())
 						Log.info("Cookies present::getting account info without login");
@@ -130,20 +136,23 @@ public class AsyncService implements Runnable {
 					executeTaskList(accountResponse, false, celebrationMap);
 					troopTrainIntervalCount++;
 				}
-				Random r = new Random();
-				int rand = r.ints(60, (100 + 1)).limit(1).findFirst().getAsInt();
+				
 				errorCount = 0; // Execution success, reset error count if incremented
 				if (Log.isInfoEnabled())
-					Log.info("Next call in ::" + rand + " sec");
+					Log.info("Next call in ::" + rand*2 + " sec");
 				Thread.sleep(2000 * rand);
 			} catch (Exception e) {
 				if (Log.isErrorEnabled())
 					Log.error("", e);
 				errorCount++;
-				gameWorld.setCookies(null);
-				if (errorCount >= 10) {
-					break;
+				if(errorCount>=10) {
+					Thread.sleep(1000 * 60 * 60);
+					if (Log.isErrorEnabled())
+						Log.error("Error count 10. pause for 1 hr");
+					errorCount=0;
 				}
+				gameWorld.setCookies(null);
+				Thread.sleep(2000 * rand);
 			}
 
 		}
@@ -218,6 +227,7 @@ public class AsyncService implements Runnable {
 									trainResponse.setLink(
 											"/build.php?newdid=" + e.getVillageId() + "&id=" + building.getId());
 									trainResponse.setTaskId(e.getTaskId());
+									trainResponse.setUserId(this.gameWorld.getUserUUID());
 									if (trainResponse.getCount() > 0)
 										troopTrainResponse.add(trainResponse);
 									break;
@@ -228,6 +238,7 @@ public class AsyncService implements Runnable {
 				} else {
 					String path = e.getLink();
 					TroopTrainRequest trainRequest = new TroopTrainRequest();
+					trainRequest.setGameWorld(this.gameWorld);
 					trainRequest.setBuildingId(
 							String.valueOf(path.replace("/build.php?newdid=" + e.getVillageId() + "&id=", "")));
 					trainRequest.setTroopType(e.getTroopType());
@@ -245,6 +256,7 @@ public class AsyncService implements Runnable {
 					trainResponse.setCount(response.getCount());
 					trainResponse.setLink(e.getLink());
 					trainResponse.setTaskId(e.getTaskId());
+					trainResponse.setUserId(this.gameWorld.getUserUUID());
 					if (trainResponse.getCount() > 0)
 						troopTrainResponse.add(trainResponse);
 				}

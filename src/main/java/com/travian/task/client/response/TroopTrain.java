@@ -15,6 +15,7 @@ import lombok.ToString;
 public class TroopTrain implements Serializable{
 	
 	private String taskId;
+	private String userId;
 	private  int villageId;
 	private String troopType;
 	private String building;
