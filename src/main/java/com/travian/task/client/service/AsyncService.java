@@ -42,8 +42,6 @@ import com.travian.task.client.util.BaseProfile;
 @Scope("prototype")
 public class AsyncService implements Runnable {
 	private static final Logger Log = LoggerFactory.getLogger(AsyncService.class);
-	
-	
 
 	@Autowired
 	private TaskClient taskClient;
@@ -113,12 +111,12 @@ public class AsyncService implements Runnable {
 					accountResponse = serviceClient.getAccountInfo(request);
 					if (Log.isDebugEnabled())
 						Log.debug("received AccountInfoResponse:::" + accountResponse);
-					gameWorld.setCookies( accountResponse.getCookies());
+					gameWorld.setCookies(accountResponse.getCookies());
 					gameWorld.setHost(request.getHost());
 					gameWorld.setUserId(request.getUserId());
 					gameWorld.setUserUUID(request.getUserUUID());
 					if (Log.isInfoEnabled())
-						Log.info("Game World Data:::"+gameWorld);
+						Log.info("Game World Data:::" + gameWorld);
 				} else {
 					if (Log.isInfoEnabled())
 						Log.info("Cookies present::getting account info without login");
@@ -136,20 +134,20 @@ public class AsyncService implements Runnable {
 					executeTaskList(accountResponse, false, celebrationMap);
 					troopTrainIntervalCount++;
 				}
-				
+
 				errorCount = 0; // Execution success, reset error count if incremented
 				if (Log.isInfoEnabled())
-					Log.info("Next call in ::" + rand*2 + " sec");
+					Log.info("Next call in ::" + rand * 2 + " sec");
 				Thread.sleep(2000 * rand);
 			} catch (Exception e) {
 				if (Log.isErrorEnabled())
 					Log.error("", e);
 				errorCount++;
-				if(errorCount>=10) {
+				if (errorCount >= 10) {
 					Thread.sleep(1000 * 60 * 60);
 					if (Log.isErrorEnabled())
 						Log.error("Error count 10. pause for 1 hr");
-					errorCount=0;
+					errorCount = 0;
 				}
 				gameWorld.setCookies(null);
 				Thread.sleep(2000 * rand);
@@ -163,7 +161,8 @@ public class AsyncService implements Runnable {
 		BaseProfile.isExecutionEnable = enable;
 	}
 
-	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop, Map<String, Integer> celebrationMap) {
+	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop,
+			Map<String, Integer> celebrationMap) {
 		// 1. check for pending adventure
 		this.initiateAdventure(accountResponse);
 		// 2. get village info
@@ -299,49 +298,53 @@ public class AsyncService implements Runnable {
 		return villages;
 	}
 
-	private Map<String, UpgradeStatus> findAndExecuteTask(List<Village> villages, Map<String, Task> tasks, Map<String, Integer> celebrationMap) {
+	private Map<String, UpgradeStatus> findAndExecuteTask(List<Village> villages, Map<String, Task> tasks,
+			Map<String, Integer> celebrationMap) {
 		final Map<String, UpgradeStatus> upgradeStatus = new HashMap<String, UpgradeStatus>();
 		villages.forEach(e -> {
-			//Check for celebration eligibility
-			if(e.isTownHallPresent()) {
+			// Check for celebration eligibility
+			if (e.isTownHallPresent()) {
 				if (Log.isInfoEnabled())
 					Log.info("TownHall Present");
 				Status status = null;
-				if(celebrationMap.containsKey(e.getVillageId())) {
+				if (celebrationMap.containsKey(e.getVillageId())) {
 					int celebrationTime = celebrationMap.get(e.getVillageId());
-					if(celebrationTime<=0) {
+					if (celebrationTime <= 0) {
 						if (Log.isInfoEnabled())
-							Log.info("celebration counter::"+celebrationTime+" for vilalgeId::"+e.getVillageId()+"::Going to check for active celebration");
+							Log.info("celebration counter::" + celebrationTime + " for vilalgeId::" + e.getVillageId()
+									+ "::Going to check for active celebration");
 						status = initiateCelebration(e);
-					}else {
+					} else {
 						if (Log.isInfoEnabled())
-							Log.info("celebration counter::"+celebrationTime+" for vilalgeId::"+e.getVillageId()+"::skip check for active celebration");
-						celebrationMap.put(e.getVillageId(), celebrationMap.get(e.getVillageId())-1);
+							Log.info("celebration counter::" + celebrationTime + " for vilalgeId::" + e.getVillageId()
+									+ "::skip check for active celebration");
+						celebrationMap.put(e.getVillageId(), celebrationMap.get(e.getVillageId()) - 1);
 					}
-				}else {
+				} else {
 					status = initiateCelebration(e);
 				}
-				
-				if(status.getStatusCode()==400) {
-					if("NOT.ENOUGH.RESOURCE".equals(status.getStatus())) {
-						celebrationMap.put(e.getVillageId(), 0); //Checking again next time
+				if (status != null) {
+					if (status.getStatusCode() == 400) {
+						if ("NOT.ENOUGH.RESOURCE".equals(status.getStatus())) {
+							celebrationMap.put(e.getVillageId(), 0); // Checking again next time
+							if (Log.isInfoEnabled())
+								Log.info(
+										"not enough resource to initiate celebration:::Waiting for enough resource::skipping all tasks");
+							return;
+						} else {
+							celebrationMap.put(e.getVillageId(), 60); // Checking again after around 2 hrs
+							if (Log.isInfoEnabled())
+								Log.info("Celebration is going on::Not skipping tasks");
+						}
+					} else if (status.getStatusCode() == 200) {
+						celebrationMap.put(e.getVillageId(), 150); // Checking again after around 5 hrs
 						if (Log.isInfoEnabled())
-							Log.info("not enough resource to initiate celebration:::Waiting for enough resource::skipping all tasks");
-						return;
-					}else {
-						celebrationMap.put(e.getVillageId(), 60); //Checking again after around 2 hrs
-						if (Log.isInfoEnabled())
-							Log.info("Celebration is going on::Not skipping tasks");
+							Log.info("Celebration initiated::end time::" + status.getStatus());
 					}
-				}else if(status.getStatusCode()==200) {
-					celebrationMap.put(e.getVillageId(), 150); //Checking again after around 5 hrs
-					if (Log.isInfoEnabled())
-						Log.info("Celebration initiated::end time::"+status.getStatus());
+
 				}
-				
 			}
-			
-			
+
 			Task task = tasks.get(e.getVillageId());
 			try {
 
@@ -446,8 +449,7 @@ public class AsyncService implements Runnable {
 		}
 		return null;
 	}
-	
-	
+
 	private Status initiateCelebration(Village village) {
 		int townHallId = village.getThId();
 		CelebrationRequest celebrationRequest = new CelebrationRequest();
@@ -455,7 +457,7 @@ public class AsyncService implements Runnable {
 		celebrationRequest.setThId(String.valueOf(townHallId));
 		celebrationRequest.setVillageId(village.getVillageId());
 		return serviceClient.initiateCelebration(celebrationRequest);
-		
+
 	}
 
 }
