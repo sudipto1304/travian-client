@@ -101,7 +101,7 @@ public class AsyncService implements Runnable {
 		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
 		while (true) {
 			Random r = new Random();
-			int rand = r.ints(60, (100 + 1)).limit(1).findFirst().getAsInt();
+			int rand = r.ints(300, (800 + 1)).limit(1).findFirst().getAsInt();
 			pauseCount = 0; // reset pause count if incremented
 			try {
 				AccountInfoResponse accountResponse = null;
@@ -146,11 +146,11 @@ public class AsyncService implements Runnable {
 				if (errorCount >= 10) {
 					Thread.sleep(1000 * 60 * 60);
 					if (Log.isErrorEnabled())
-						Log.error("Error count 10. pause for 1 hr");
-					errorCount = 0;
+						Log.error("Error count 10. breaking");
+					break;
 				}
 				gameWorld.setCookies(null);
-				Thread.sleep(2000 * rand);
+				
 			}
 
 		}
