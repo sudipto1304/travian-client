@@ -101,7 +101,7 @@ public class AsyncService implements Runnable {
 		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
 		while (true) {
 			Random r = new Random();
-			int rand = r.ints(300, (800 + 1)).limit(1).findFirst().getAsInt();
+			int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
 			pauseCount = 0; // reset pause count if incremented
 			try {
 				AccountInfoResponse accountResponse = null;
