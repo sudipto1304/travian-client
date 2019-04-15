@@ -11,7 +11,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Component;
 
 import com.travian.task.client.config.ServiceClient;
@@ -49,6 +51,11 @@ public class AsyncService implements Runnable {
 	private AccountInfoRequest request;
 	private GameWorld gameWorld = new GameWorld();
 
+	@Autowired
+    private TaskExecutor taskExecutor;
+    @Autowired
+    private ApplicationContext applicationContext;
+    
 	@Autowired
 	private ServiceClient serviceClient;
 
@@ -104,50 +111,51 @@ public class AsyncService implements Runnable {
 			int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
 			pauseCount = 0; // reset pause count if incremented
 			try {
-				AccountInfoResponse accountResponse = null;
-				if (gameWorld.getCookies() == null) {
+				if(BaseProfile.isExecutionEnable) {
+					AccountInfoResponse accountResponse = null;
+					if (gameWorld.getCookies() == null) {
+						if (Log.isInfoEnabled())
+							Log.info("Cookies not present::getting account info with login");
+						accountResponse = serviceClient.getAccountInfo(request);
+						if (Log.isDebugEnabled())
+							Log.debug("received AccountInfoResponse:::" + accountResponse);
+						gameWorld.setCookies(accountResponse.getCookies());
+						gameWorld.setHost(request.getHost());
+						gameWorld.setUserId(request.getUserId());
+						gameWorld.setUserUUID(request.getUserUUID());
+						if (Log.isInfoEnabled())
+							Log.info("Game World Data:::" + gameWorld);
+					} else {
+						if (Log.isInfoEnabled())
+							Log.info("Cookies present::getting account info without login");
+						accountResponse = serviceClient.getAccountInfo(gameWorld);
+					}
+	
+					if (troopTrainIntervalCount == 15) {
+						if (Log.isInfoEnabled())
+							Log.info("Troop Train Count is " + troopTrainIntervalCount + " initiate troop train");
+						executeTaskList(accountResponse, true, celebrationMap);
+						troopTrainIntervalCount = 0;
+					} else {
+						if (Log.isInfoEnabled())
+							Log.info("Troop Train Count is " + troopTrainIntervalCount + " skip troop train");
+						executeTaskList(accountResponse, false, celebrationMap);
+						troopTrainIntervalCount++;
+					}
+	
+					errorCount = 0; // Execution success, reset error count if incremented
 					if (Log.isInfoEnabled())
-						Log.info("Cookies not present::getting account info with login");
-					accountResponse = serviceClient.getAccountInfo(request);
-					if (Log.isDebugEnabled())
-						Log.debug("received AccountInfoResponse:::" + accountResponse);
-					gameWorld.setCookies(accountResponse.getCookies());
-					gameWorld.setHost(request.getHost());
-					gameWorld.setUserId(request.getUserId());
-					gameWorld.setUserUUID(request.getUserUUID());
-					if (Log.isInfoEnabled())
-						Log.info("Game World Data:::" + gameWorld);
-				} else {
-					if (Log.isInfoEnabled())
-						Log.info("Cookies present::getting account info without login");
-					accountResponse = serviceClient.getAccountInfo(gameWorld);
+						Log.info("Next call in ::" + rand * 2 + " sec");
 				}
-
-				if (troopTrainIntervalCount == 15) {
-					if (Log.isInfoEnabled())
-						Log.info("Troop Train Count is " + troopTrainIntervalCount + " initiate troop train");
-					executeTaskList(accountResponse, true, celebrationMap);
-					troopTrainIntervalCount = 0;
-				} else {
-					if (Log.isInfoEnabled())
-						Log.info("Troop Train Count is " + troopTrainIntervalCount + " skip troop train");
-					executeTaskList(accountResponse, false, celebrationMap);
-					troopTrainIntervalCount++;
-				}
-
-				errorCount = 0; // Execution success, reset error count if incremented
-				if (Log.isInfoEnabled())
-					Log.info("Next call in ::" + rand * 2 + " sec");
 				Thread.sleep(2000 * rand);
 			} catch (Exception e) {
 				if (Log.isErrorEnabled())
 					Log.error("", e);
 				errorCount++;
-				if (errorCount >= 10) {
-					Thread.sleep(1000 * 60 * 60);
+				if (errorCount >= 5) {
 					if (Log.isErrorEnabled())
-						Log.error("Error count 10. breaking");
-					break;
+						Log.error("Error count 5. waiting for 5 mins");
+					Thread.sleep(1000 * 60 * 5);
 				}
 				gameWorld.setCookies(null);
 				
@@ -176,6 +184,7 @@ public class AsyncService implements Runnable {
 		});
 
 		List<Village> villages = this.getVillageList(villageList);
+		attackResolution(villages); //check for any incoming  attack
 		Map<String, UpgradeStatus> upgradeStatus = null;
 		if (!tasks.isEmpty()) {
 			upgradeStatus = this.findAndExecuteTask(villages, tasks, celebrationMap);
@@ -189,6 +198,18 @@ public class AsyncService implements Runnable {
 		}
 
 	}
+	
+	private void attackResolution(List<Village> villages) {
+		villages.forEach(e->{
+			if(e.getIncomingAttack()!=null && e.getIncomingAttack().getAttackCount()>0) {
+				if(Log.isInfoEnabled())
+					Log.info("********Incoming attack detected******"+e.getIncomingAttack());
+				AttackResolutionService service = applicationContext.getBean(AttackResolutionService.class, e, this.gameWorld);
+				taskExecutor.execute(service);
+			}
+		});
+	}
+	
 
 	private void trainTroop(List<Village> villages, List<TroopTrain> troopTasks,
 			Map<String, UpgradeStatus> upgradeStatusMap) {
