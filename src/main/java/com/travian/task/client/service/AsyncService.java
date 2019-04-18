@@ -250,7 +250,7 @@ public class AsyncService implements Runnable {
 									trainResponse.setUserId(this.gameWorld.getUserUUID());
 									if (trainResponse.getCount() > 0)
 										troopTrainResponse.add(trainResponse);
-									break;
+									return;
 								}
 							}
 						}
@@ -279,8 +279,8 @@ public class AsyncService implements Runnable {
 					trainResponse.setUserId(this.gameWorld.getUserUUID());
 					if (trainResponse.getCount() > 0)
 						troopTrainResponse.add(trainResponse);
+					return;
 				}
-				this.updateTroopCount(troopTrainResponse);
 			} else {
 				if (Log.isInfoEnabled())
 					Log.info("upgradeStatus for village id " + e.getVillageId() + " is::" + upgradeStatus.name()
@@ -288,6 +288,9 @@ public class AsyncService implements Runnable {
 			}
 
 		});
+		if (Log.isInfoEnabled())
+			Log.info("Troop Train update request---->"+troopTrainResponse);
+		this.updateTroopCount(troopTrainResponse);
 
 	}
 
@@ -372,7 +375,7 @@ public class AsyncService implements Runnable {
 				if (Log.isInfoEnabled())
 					Log.info("Task to be executed:::" + task);
 				if (task != null && (task.getTaskType() == TaskType.RESOURCE_UPDATE
-						|| task.getTaskType() == TaskType.BUILDING_UPDATE)) {
+						|| task.getTaskType() == TaskType.BUILDING_UPDATE)) { //Task Present in DB
 					Resource resource = e.getResource();
 					Fields field = searchResourceField(task.getId(), resource.getFields());
 					if (field == null) {
@@ -384,45 +387,47 @@ public class AsyncService implements Runnable {
 						field.setNextLevelWood(building.getNextLevelWood());
 						field.setId(building.getId());
 					}
-					if (resource.getWood() > field.getNextLevelWood() && resource.getClay() > field.getNextLevelClay()
-							&& resource.getIron() > field.getNextLevelIron()
-							&& resource.getCrop() > field.getNextLevelCrop()) {
+					if (e.getOngoingConstruction() == AppConstant.MAX_UPGRADE_TASK) { //Max task in progress
+						upgradeStatus.put(e.getVillageId(), UpgradeStatus.MAX_WORK_IN_PROGRESS);
 						if (Log.isInfoEnabled())
-							Log.info("Enough resources are present to complete the task");
-						if (e.getOngoingConstruction() == AppConstant.MAX_UPGRADE_TASK) {
-							upgradeStatus.put(e.getVillageId(), UpgradeStatus.MAX_WORK_IN_PROGRESS);
-							if (Log.isInfoEnabled())
-								Log.info(
-										"Maximum number of tasks are already in progress:::unable to execute task now");
-							return;
-						} else {
-							UpgradeRequest resourceUpgradeRequest = new UpgradeRequest();
-							resourceUpgradeRequest.setGameWorld(this.gameWorld);
-							resourceUpgradeRequest.setVillageId(e.getVillageId());
-							resourceUpgradeRequest.setId(String.valueOf(field.getId()));
-							Status status = serviceClient.upgrade(resourceUpgradeRequest);
-							if (status.getStatusCode() == 400) {
-								if (Log.isInfoEnabled())
-									Log.info("Unable to execute task. Skipping the task");
-								upgradeStatus.put(e.getVillageId(), UpgradeStatus.TASK_SKIP);
-								this.skipTask(e.getVillageId(), task.getTaskId());
-							} else {
-								int constructionCount = Integer.valueOf(status.getStatus());
-								if (constructionCount > e.getOngoingConstruction()) {
-									if (Log.isInfoEnabled())
-										Log.info("Upgrade done successfully");
-									upgradeStatus.put(e.getVillageId(), UpgradeStatus.UPGRADE_SUCCESS);
-									this.completeTask(e.getVillageId(), task.getTaskId());
-								}
-							}
-						}
-					} else {
-						upgradeStatus.put(e.getVillageId(), UpgradeStatus.NOT_ENOUGH_RESOURCE);
-						if (Log.isInfoEnabled())
-							Log.info("Not enough resources to complete the task");
+							Log.info(
+									"Maximum number of tasks are already in progress:::unable to execute task now");
 						return;
+					}else { //Task slot empty
+						if (resource.getWood() > field.getNextLevelWood() && resource.getClay() > field.getNextLevelClay()
+								&& resource.getIron() > field.getNextLevelIron()
+								&& resource.getCrop() > field.getNextLevelCrop()) {  //Enough resource present
+							if (Log.isInfoEnabled())
+								Log.info("Enough resources are present to complete the task");
+							
+								UpgradeRequest resourceUpgradeRequest = new UpgradeRequest();
+								resourceUpgradeRequest.setGameWorld(this.gameWorld);
+								resourceUpgradeRequest.setVillageId(e.getVillageId());
+								resourceUpgradeRequest.setId(String.valueOf(field.getId()));
+								Status status = serviceClient.upgrade(resourceUpgradeRequest);
+								if (status.getStatusCode() == 400) {
+									if (Log.isInfoEnabled())
+										Log.info("Unable to execute task. Skipping the task");
+									upgradeStatus.put(e.getVillageId(), UpgradeStatus.TASK_SKIP);
+									this.skipTask(e.getVillageId(), task.getTaskId());
+								} else {
+									int constructionCount = Integer.valueOf(status.getStatus());
+									if (constructionCount > e.getOngoingConstruction()) {
+										if (Log.isInfoEnabled())
+											Log.info("Upgrade done successfully");
+										upgradeStatus.put(e.getVillageId(), UpgradeStatus.UPGRADE_SUCCESS);
+										this.completeTask(e.getVillageId(), task.getTaskId());
+									}
+								}
+						} else { //not enough resource
+							upgradeStatus.put(e.getVillageId(), UpgradeStatus.NOT_ENOUGH_RESOURCE);
+							if (Log.isInfoEnabled())
+								Log.info("Not enough resources to complete the task");
+							return;
+						}
 					}
-				} else {
+					
+				} else { //no task in db
 					upgradeStatus.put(e.getVillageId(), UpgradeStatus.NO_TASK);
 				}
 			}
