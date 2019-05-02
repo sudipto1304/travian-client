@@ -109,6 +109,14 @@ public class AttackResolutionService implements Runnable {
 					}
 				}else {
 					Thread.sleep(1000*20);
+					VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
+					villageInfoRequest.setGameWorld(this.gameWorld);
+					villageInfoRequest.setLink(Arrays.asList(new String[]{this.village.getLink()}));
+					List<Village> villages = serviceClient.getVillageInfo(villageInfoRequest);
+					IncomingAttack inAttack = villages.get(0).getIncomingAttack();
+					if(inAttack!=null) {
+						attackDuration = inAttack.getDuration();
+					}
 				}
 			}
 		}else {
