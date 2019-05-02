@@ -70,11 +70,18 @@ public class AttackResolutionService implements Runnable {
 					if(Log.isDebugEnabled())
 						Log.debug("evasion request"+request);
 					EvasionResponse response = serviceClient.initiateTroopEvasion(request);
-					if(Log.isInfoEnabled())
-						Log.info("Troop evasion success::"+response);
-					isEvasionSuccess=true;
+					if(response.getStatusCode()==412) {
+						if(Log.isDebugEnabled())
+							Log.debug("There is no troop present in the village..so attack is resolved");
+						isResolved=true;
+						isEvasionSuccess=false;
+					}else {
+						if(Log.isInfoEnabled())
+							Log.info("Troop evasion success::"+response);
+						isEvasionSuccess=true;
+					}
 					
-				}else {
+				}else if(isEvasionSuccess){
 					Thread.sleep(1000*20);
 					VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
 					villageInfoRequest.setGameWorld(this.gameWorld);
@@ -98,15 +105,19 @@ public class AttackResolutionService implements Runnable {
 							if(Log.isInfoEnabled())
 								Log.info("Troop return successfull::evasion complete");
 						}
-						BaseProfile.isExecutionEnable = true;
 						isResolved=true;
 					}
+				}else {
+					Thread.sleep(1000*20);
 				}
 			}
 		}else {
 			if(Log.isInfoEnabled())
 				Log.info("Attack time more than 5 mins:::skipping attack resolution now");
 		}
+		if(Log.isInfoEnabled())
+			Log.info("Attack Resolution task done::Back to main thread");
+		BaseProfile.isExecutionEnable = true;
 		
 	}
 	

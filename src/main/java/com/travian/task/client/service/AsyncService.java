@@ -112,6 +112,8 @@ public class AsyncService implements Runnable {
 			pauseCount = 0; // reset pause count if incremented
 			try {
 				if(BaseProfile.isExecutionEnable) {
+					if (Log.isInfoEnabled())
+						Log.info("**********Task execution start/resumed*********");
 					AccountInfoResponse accountResponse = null;
 					if (gameWorld.getCookies() == null) {
 						if (Log.isInfoEnabled())
@@ -146,6 +148,9 @@ public class AsyncService implements Runnable {
 					errorCount = 0; // Execution success, reset error count if incremented
 					if (Log.isInfoEnabled())
 						Log.info("Next call in ::" + rand * 2 + " sec");
+				}else {
+					if (Log.isInfoEnabled())
+						Log.info("**********Task execution paused*********");
 				}
 				Thread.sleep(2000 * rand);
 			} catch (Exception e) {
