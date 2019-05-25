@@ -1,6 +1,7 @@
 package com.travian.task.client.service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import com.travian.task.client.config.TaskClient;
 import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.request.CelebrationRequest;
 import com.travian.task.client.request.GameWorld;
+import com.travian.task.client.request.TradeRequest;
+import com.travian.task.client.request.TradeRouteRequest;
 import com.travian.task.client.request.TroopTrainRequest;
 import com.travian.task.client.request.UpgradeRequest;
 import com.travian.task.client.request.VillageInfoRequest;
@@ -38,7 +41,6 @@ import com.travian.task.client.response.UpgradeStatus;
 import com.travian.task.client.response.Village;
 import com.travian.task.client.util.AccountUtils;
 import com.travian.task.client.util.AppConstant;
-import com.travian.task.client.util.BaseProfile;
 
 @Component
 @Scope("prototype")
@@ -51,11 +53,15 @@ public class AsyncService implements Runnable {
 	private AccountInfoRequest request;
 	private GameWorld gameWorld = new GameWorld();
 
+	private Map<String, Boolean> busyStatusMap = new HashMap<String, Boolean>();
+
 	@Autowired
-    private TaskExecutor taskExecutor;
-    @Autowired
-    private ApplicationContext applicationContext;
-    
+	private TaskExecutor taskExecutor;
+	@Autowired
+	private ApplicationContext applicationContext;
+
+	private Map<String, String> preference;
+
 	@Autowired
 	private ServiceClient serviceClient;
 
@@ -106,12 +112,16 @@ public class AsyncService implements Runnable {
 		int errorCount = 0;
 		int troopTrainIntervalCount = 0;
 		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
+
 		while (true) {
 			Random r = new Random();
 			int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
 			pauseCount = 0; // reset pause count if incremented
+			this.preference = taskClient.getAccountPreference(request.getUserUUID());
+			celebrationMap.clear();
+			busyStatusMap.clear();
 			try {
-				if(BaseProfile.isExecutionEnable) {
+				if (Boolean.valueOf(this.preference.get("executionEnable"))) {
 					if (Log.isInfoEnabled())
 						Log.info("**********Task execution start/resumed*********");
 					AccountInfoResponse accountResponse = null;
@@ -132,7 +142,7 @@ public class AsyncService implements Runnable {
 							Log.info("Cookies present::getting account info without login");
 						accountResponse = serviceClient.getAccountInfo(gameWorld);
 					}
-	
+
 					if (troopTrainIntervalCount == 15) {
 						if (Log.isInfoEnabled())
 							Log.info("Troop Train Count is " + troopTrainIntervalCount + " initiate troop train");
@@ -144,11 +154,11 @@ public class AsyncService implements Runnable {
 						executeTaskList(accountResponse, false, celebrationMap);
 						troopTrainIntervalCount++;
 					}
-	
+
 					errorCount = 0; // Execution success, reset error count if incremented
 					if (Log.isInfoEnabled())
 						Log.info("Next call in ::" + rand * 2 + " sec");
-				}else {
+				} else {
 					if (Log.isInfoEnabled())
 						Log.info("**********Task execution paused*********");
 				}
@@ -163,15 +173,11 @@ public class AsyncService implements Runnable {
 					Thread.sleep(1000 * 60 * 5);
 				}
 				gameWorld.setCookies(null);
-				
+
 			}
 
 		}
 
-	}
-
-	public void toggleExecution(boolean enable) {
-		BaseProfile.isExecutionEnable = enable;
 	}
 
 	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop,
@@ -189,7 +195,7 @@ public class AsyncService implements Runnable {
 		});
 
 		List<Village> villages = this.getVillageList(villageList);
-		attackResolution(villages); //check for any incoming  attack
+		//attackResolution(villages); // check for any incoming attack
 		Map<String, UpgradeStatus> upgradeStatus = null;
 		if (!tasks.isEmpty()) {
 			upgradeStatus = this.findAndExecuteTask(villages, tasks, celebrationMap);
@@ -202,19 +208,22 @@ public class AsyncService implements Runnable {
 			this.trainTroop(villages, troopTasks, upgradeStatus);
 		}
 
+		this.resourceManagement(villages);
+
 	}
-	
+
 	private void attackResolution(List<Village> villages) {
-		villages.forEach(e->{
-			if(e.getIncomingAttack()!=null && e.getIncomingAttack().getAttackCount()>0) {
-				if(Log.isInfoEnabled())
-					Log.info("********Incoming attack detected******"+e.getIncomingAttack());
-				AttackResolutionService service = applicationContext.getBean(AttackResolutionService.class, e, this.gameWorld);
+		villages.forEach(e -> {
+			if (e.getIncomingAttack() != null && e.getIncomingAttack().getAttackCount() > 0) {
+				this.busyStatusMap.put(e.getVillageId(), true);
+				if (Log.isInfoEnabled())
+					Log.info("********Incoming attack detected******" + e.getIncomingAttack());
+				AttackResolutionService service = applicationContext.getBean(AttackResolutionService.class, e,
+						this.gameWorld);
 				taskExecutor.execute(service);
 			}
 		});
 	}
-	
 
 	private void trainTroop(List<Village> villages, List<TroopTrain> troopTasks,
 			Map<String, UpgradeStatus> upgradeStatusMap) {
@@ -287,14 +296,19 @@ public class AsyncService implements Runnable {
 					return;
 				}
 			} else {
-				if (Log.isInfoEnabled())
-					Log.info("upgradeStatus for village id " + e.getVillageId() + " is::" + upgradeStatus.name()
-							+ "::TroopTrain task skip");
+				try {
+					if (Log.isInfoEnabled())
+						Log.info("upgradeStatus for village id " + e.getVillageId() + " is::" + upgradeStatus.name()
+								+ "::TroopTrain task skip");
+				} catch (Exception e2) {
+					Log.error("Handled Exeption::::", e2);
+				}
+
 			}
 
 		});
 		if (Log.isInfoEnabled())
-			Log.info("Troop Train update request---->"+troopTrainResponse);
+			Log.info("Troop Train update request---->" + troopTrainResponse);
 		this.updateTroopCount(troopTrainResponse);
 
 	}
@@ -331,6 +345,7 @@ public class AsyncService implements Runnable {
 			Map<String, Integer> celebrationMap) {
 		final Map<String, UpgradeStatus> upgradeStatus = new HashMap<String, UpgradeStatus>();
 		villages.forEach(e -> {
+			this.busyStatusMap.put(e.getVillageId(), false);
 			// Check for celebration eligibility
 			if (e.isTownHallPresent()) {
 				if (Log.isInfoEnabled())
@@ -359,6 +374,7 @@ public class AsyncService implements Runnable {
 							if (Log.isInfoEnabled())
 								Log.info(
 										"not enough resource to initiate celebration:::Waiting for enough resource::skipping all tasks");
+							this.busyStatusMap.put(e.getVillageId(), true);
 							return;
 						} else {
 							celebrationMap.put(e.getVillageId(), 60); // Checking again after around 2 hrs
@@ -380,7 +396,7 @@ public class AsyncService implements Runnable {
 				if (Log.isInfoEnabled())
 					Log.info("Task to be executed:::" + task);
 				if (task != null && (task.getTaskType() == TaskType.RESOURCE_UPDATE
-						|| task.getTaskType() == TaskType.BUILDING_UPDATE)) { //Task Present in DB
+						|| task.getTaskType() == TaskType.BUILDING_UPDATE)) { // Task Present in DB
 					Resource resource = e.getResource();
 					Fields field = searchResourceField(task.getId(), resource.getFields());
 					if (field == null) {
@@ -392,47 +408,49 @@ public class AsyncService implements Runnable {
 						field.setNextLevelWood(building.getNextLevelWood());
 						field.setId(building.getId());
 					}
-					if (e.getOngoingConstruction() == AppConstant.MAX_UPGRADE_TASK) { //Max task in progress
+					if (e.getOngoingConstruction() == AppConstant.MAX_UPGRADE_TASK) { // Max task in progress
 						upgradeStatus.put(e.getVillageId(), UpgradeStatus.MAX_WORK_IN_PROGRESS);
 						if (Log.isInfoEnabled())
-							Log.info(
-									"Maximum number of tasks are already in progress:::unable to execute task now");
+							Log.info("Maximum number of tasks are already in progress:::unable to execute task now");
 						return;
-					}else { //Task slot empty
-						if (resource.getWood() > field.getNextLevelWood() && resource.getClay() > field.getNextLevelClay()
+					} else { // Task slot empty
+						if (resource.getWood() > field.getNextLevelWood()
+								&& resource.getClay() > field.getNextLevelClay()
 								&& resource.getIron() > field.getNextLevelIron()
-								&& resource.getCrop() > field.getNextLevelCrop()) {  //Enough resource present
+								&& resource.getCrop() > field.getNextLevelCrop()) { // Enough resource present
 							if (Log.isInfoEnabled())
 								Log.info("Enough resources are present to complete the task");
-							
-								UpgradeRequest resourceUpgradeRequest = new UpgradeRequest();
-								resourceUpgradeRequest.setGameWorld(this.gameWorld);
-								resourceUpgradeRequest.setVillageId(e.getVillageId());
-								resourceUpgradeRequest.setId(String.valueOf(field.getId()));
-								Status status = serviceClient.upgrade(resourceUpgradeRequest);
-								if (status.getStatusCode() == 400) {
+
+							UpgradeRequest resourceUpgradeRequest = new UpgradeRequest();
+							resourceUpgradeRequest.setGameWorld(this.gameWorld);
+							resourceUpgradeRequest.setVillageId(e.getVillageId());
+							resourceUpgradeRequest.setId(String.valueOf(field.getId()));
+							Status status = serviceClient.upgrade(resourceUpgradeRequest);
+							if (status.getStatusCode() == 400) {
+								if (Log.isInfoEnabled())
+									Log.info("Unable to execute task. Skipping the task");
+								upgradeStatus.put(e.getVillageId(), UpgradeStatus.TASK_SKIP);
+								this.skipTask(e.getVillageId(), task.getTaskId());
+								this.busyStatusMap.put(e.getVillageId(), true);
+							} else {
+								int constructionCount = Integer.valueOf(status.getStatus());
+								if (constructionCount > e.getOngoingConstruction()) {
 									if (Log.isInfoEnabled())
-										Log.info("Unable to execute task. Skipping the task");
-									upgradeStatus.put(e.getVillageId(), UpgradeStatus.TASK_SKIP);
-									this.skipTask(e.getVillageId(), task.getTaskId());
-								} else {
-									int constructionCount = Integer.valueOf(status.getStatus());
-									if (constructionCount > e.getOngoingConstruction()) {
-										if (Log.isInfoEnabled())
-											Log.info("Upgrade done successfully");
-										upgradeStatus.put(e.getVillageId(), UpgradeStatus.UPGRADE_SUCCESS);
-										this.completeTask(e.getVillageId(), task.getTaskId());
-									}
+										Log.info("Upgrade done successfully");
+									upgradeStatus.put(e.getVillageId(), UpgradeStatus.UPGRADE_SUCCESS);
+									this.completeTask(e.getVillageId(), task.getTaskId());
 								}
-						} else { //not enough resource
+							}
+						} else { // not enough resource
 							upgradeStatus.put(e.getVillageId(), UpgradeStatus.NOT_ENOUGH_RESOURCE);
 							if (Log.isInfoEnabled())
 								Log.info("Not enough resources to complete the task");
+							this.busyStatusMap.put(e.getVillageId(), true);
 							return;
 						}
 					}
-					
-				} else { //no task in db
+
+				} else { // no task in db
 					upgradeStatus.put(e.getVillageId(), UpgradeStatus.NO_TASK);
 				}
 			}
@@ -440,6 +458,7 @@ public class AsyncService implements Runnable {
 			catch (Exception ex) {
 				if (Log.isErrorEnabled())
 					Log.error("Error to execute task", e);
+				this.busyStatusMap.put(e.getVillageId(), true);
 				this.skipTask(e.getVillageId(), task.getTaskId());
 			}
 		});
@@ -491,4 +510,119 @@ public class AsyncService implements Runnable {
 
 	}
 
+	private void resourceManagement(List<Village> villages) {
+		if (Log.isInfoEnabled()) {
+			Log.info("Initiated resourceManagement");
+			Log.info("Village Busy Status:::" + this.busyStatusMap);
+		}
+		List<TradeRequest> trades = taskClient.getTrades(this.gameWorld.getUserUUID());
+		trades.forEach(e -> {
+			boolean isBusy = this.busyStatusMap.get(e.getSourceVillage());
+			if (!isBusy) {
+				if (Log.isInfoEnabled())
+					Log.info(e.getSourceVillage() + " is not busy::Checking schedule transfer time");
+				TradeRouteRequest transferRequest = new TradeRouteRequest();
+				long timeStampDiff = new Date().getTime() - Long.valueOf(e.getLastUpdateTime());
+				int min = (int) (timeStampDiff / (1000*60));
+				if (Log.isInfoEnabled())
+					Log.info(e.getSourceVillage() +" Last updated "+min+" min ago");
+				if (min >= e.getInterval()) {
+					if (Log.isInfoEnabled())
+						Log.info("Last updated "+min+" min ago::interval "+e.getInterval()+" :::Initiating transfer");
+					transferRequest.setGameWorld(this.gameWorld);
+					transferRequest.setClay(String.valueOf(e.getClay()));
+					transferRequest.setWood(String.valueOf(e.getWood()));
+					transferRequest.setCrop(String.valueOf(e.getCrop()));
+					transferRequest.setIron(String.valueOf(e.getIron()));
+					transferRequest.setDestinationVillage(e.getDestVillageName());
+					transferRequest.setSourceVillage(e.getSourceVillage());
+					transferRequest.setNumberOfDelivery("1");
+					if (Log.isInfoEnabled())
+						Log.info("Transfer request for"+e.getSourceVillage()+" is::"+transferRequest);
+					Status status=null;
+					try {
+						status = serviceClient.transferResource(transferRequest);
+					} catch (Exception e2) {
+						if (Log.isErrorEnabled())
+							Log.error("transfer Failed for "+e.getTransactionId());
+						taskClient.updateTrades(e.getTransactionId());
+						return;
+					}
+					
+					if (Log.isInfoEnabled())
+						Log.info("Transfer status for ::"+e.getSourceVillage()+" is::"+status);
+					if(status.getStatusCode()==200) {
+						taskClient.updateTrades(e.getTransactionId());
+					}
+				}else {
+					if (Log.isInfoEnabled())
+						Log.info("Last updated "+min+" min ago::interval "+e.getInterval()+" :::transfer skip");
+				}
+
+			}else {
+				if (Log.isInfoEnabled())
+					Log.info(e.getSourceVillage()+ " has busy status:: no transfer");
+			}
+		});
+		
+		this.safeTransfer(villages);
+
+	}
+	
+	private void safeTransfer(List<Village> villages) {
+		villages.forEach(e->{
+			boolean transferRequired = false;
+			TradeRouteRequest transferRequest = new TradeRouteRequest();
+			int wareHouseCapacity = e.getResource().getWarehouseCapacity();
+			int granCapacity = e.getResource().getGranaryCapacity();
+			int wareHouseCapacity85 = (wareHouseCapacity*85)/100;
+			int granCapacity85 = (granCapacity*85)/100;
+			int woodPercent = (e.getResource().getWood()/wareHouseCapacity)*100;
+			int ironPercent = (e.getResource().getIron()/wareHouseCapacity)*100;
+			int clayPercent = (e.getResource().getClay()/wareHouseCapacity)*100;
+			int cropPercent = (e.getResource().getCrop()/granCapacity)*100;
+			if(woodPercent>85) {
+				transferRequired=true;
+				if (Log.isInfoEnabled())
+					Log.info(e.getVillageId()+ " woodPercent::"+woodPercent);
+				transferRequest.setWood(String.valueOf(e.getResource().getWood()-wareHouseCapacity85));
+			}
+			if(clayPercent>85) {
+				transferRequired=true;
+				if (Log.isInfoEnabled())
+					Log.info(e.getVillageId()+ " clayPercent::"+clayPercent);
+				transferRequest.setClay(String.valueOf(e.getResource().getClay()-wareHouseCapacity85));
+			}
+			if(ironPercent>85) {
+				transferRequired=true;
+				if (Log.isInfoEnabled())
+					Log.info(e.getVillageId()+ " ironPercent::"+ironPercent);
+				transferRequest.setIron(String.valueOf(e.getResource().getIron()-wareHouseCapacity85));
+			}
+			if(cropPercent>85) {
+				transferRequired=true;
+				if (Log.isInfoEnabled())
+					Log.info(e.getVillageId()+ " cropPercent::"+cropPercent);
+				transferRequest.setCrop(String.valueOf(e.getResource().getCrop()-granCapacity85));
+			}
+			transferRequest.setDestinationVillage(this.preference.get("resourceTransferVillage"));
+			transferRequest.setSourceVillage(e.getVillageId());
+			transferRequest.setNumberOfDelivery("1");
+			transferRequest.setGameWorld(this.gameWorld);
+			if(transferRequired) {
+				if (Log.isInfoEnabled())
+					Log.info("Transfer request for"+e.getVillageId()+" is::"+transferRequest);
+				try {
+					Status status = serviceClient.transferResource(transferRequest);
+					if (Log.isInfoEnabled())
+						Log.info("Transfer success for "+e.getVillageId());
+				} catch (Exception e2) {
+					if (Log.isErrorEnabled())
+						Log.error("transfer Failed for "+e.getVillageId());
+					return;
+				}
+			}
+			
+		});
+	}
 }

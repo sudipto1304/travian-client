@@ -11,13 +11,19 @@ import lombok.ToString;
 @ToString
 public class TradeRouteRequest extends GameWorld implements Serializable{
 	
-	private String villageId;
-	private int wood;
-	private int clay;
-	private int iron;
-	private int crop;
-	private List<Integer> time;
-	private int numberOfDelivery;
+	private String destinationVillage;
+	private String sourceVillage;
+	private String wood="0";
+	private String clay="0";
+	private String iron="0";
+	private String crop="0";
+	private List<String> time;
+	private String numberOfDelivery="1";
+	private String gid;
+	private String a;
+	private String t;
+	private String trid;
+	private String option;
 	
 
 }

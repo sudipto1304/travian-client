@@ -12,6 +12,7 @@ import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.request.CelebrationRequest;
 import com.travian.task.client.request.GameWorld;
 import com.travian.task.client.request.InitiateAdventureRequest;
+import com.travian.task.client.request.TradeRouteRequest;
 import com.travian.task.client.request.TroopEvasionRequest;
 import com.travian.task.client.request.TroopTrainRequest;
 import com.travian.task.client.request.UpgradeRequest;
@@ -52,10 +53,14 @@ public interface ServiceClient {
 	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/village/initiateCelebration", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Status initiateCelebration(@RequestBody CelebrationRequest request);
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/village/initiateTroopEvation", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/troop/initiateTroopEvation", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	EvasionResponse initiateTroopEvasion(@RequestBody TroopEvasionRequest request);
 	
-	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/village/resolveEvasion", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/troop/resolveEvasion", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	Status resolveEvasion(@RequestBody TroopEvasionRequest request);
+	
+	
+	@RequestMapping(method = RequestMethod.POST, path = "/travian-service/resource/transfer", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	Status transferResource(@RequestBody TradeRouteRequest request);
 
 }
