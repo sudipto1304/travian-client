@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.travian.task.client.request.AccountInfoRequest;
 import com.travian.task.client.response.Fields;
 import com.travian.task.client.response.Resource;
+import com.travian.task.client.response.Status;
 import com.travian.task.client.response.Task;
 import com.travian.task.client.response.Village;
 
@@ -53,7 +54,7 @@ public class BrowserService {
 
 	}
 
-	public void executeVillageTaskes(AccountInfoRequest request, WebDriver driver, Village village, Task task) {
+	public Status executeVillageTaskes(AccountInfoRequest request, WebDriver driver, Village village, Task task) {
 		driver.get("https://" + request.getHost() + "/dorf1.php?newdid=" + village.getVillageId() + "&");
 		Resource resource = new Resource();
 		resource.setWarehouseCapacity(
@@ -72,20 +73,47 @@ public class BrowserService {
 				.findElement(By.xpath("(//table[@id='production']//tbody//tr//td[@class='num'])[3]")).getText())));
 		resource.setCropProduction(Integer.valueOf(replaceChar(driver
 				.findElement(By.xpath("(//table[@id='production']//tbody//tr//td[@class='num'])[4]")).getText())));
-		getVillageFields(resource, driver, request.getHost());
+		getVillageFields(resource, driver, request);
 		village.setResource(resource);
-		getBuildings(driver, village, request.getHost());
-		
+		if (Log.isInfoEnabled())
+			Log.info("Village details::"+village);
+		return upgrade(driver, village, task, request);
+
 	}
 
-	private void getVillageFields(Resource resource, WebDriver driver, String host) {
+	private Status upgrade(WebDriver driver, Village village, Task task, AccountInfoRequest request) {
+		if (task!=null && village.getOngoingConstruction() < request.getMaxTask()) {
+			if (task.getId() > 18) {
+				if (Log.isInfoEnabled())
+					Log.info("Upgrading building");
+				driver.findElement(By.className("villageBuildings")).click();
+			} else {
+				if (Log.isInfoEnabled())
+					Log.info("Upgrading resource");
+			}
+			driver.get("https://" + request.getHost() + "/build.php?id=" + task.getId());
+			try {
+				driver.findElement(By.className("completedMessage")).getText();
+				return new Status("FULL.EXTENDED", 400);
+			} catch (Exception e) {
+				driver.findElement(By.xpath("(//button[@class='green build'])")).click();
+				return new Status("SUCCESS", 200);
+			}
+		}else {
+			return new Status("MAX.TASK.PROGRESS", 99);
+		}
+
+	}
+
+	private void getVillageFields(Resource resource, WebDriver driver, AccountInfoRequest request) {
 		List<Fields> fields = new ArrayList<Fields>();
 		List<WebElement> fieldElm = driver.findElements(By.xpath("(//map[@id='rx']//area)"));
 		fieldElm.forEach(e -> {
 			try {
 				Fields field = new Fields();
-				field.setLink(e.getAttribute("href").replace("https://" + host, ""));
-				field.setId(Integer.valueOf(e.getAttribute("href").replace("https://" + host + "/build.php?id=", "")));
+				field.setLink(e.getAttribute("href").replace("https://" + request.getHost(), ""));
+				field.setId(Integer.valueOf(
+						e.getAttribute("href").replace("https://" + request.getHost() + "/build.php?id=", "")));
 				String alt = e.getAttribute("alt");
 				alt = alt.substring(alt.indexOf("Level") + 5, alt.length()).trim();
 
@@ -97,12 +125,6 @@ public class BrowserService {
 
 		});
 		resource.setFields(fields);
-	}
-	
-	
-	private void getBuildings(WebDriver driver, Village village, String host) {
-		driver.findElement(By.className("villageBuildings")).click();
-		
 	}
 
 	private String replaceChar(String input) {

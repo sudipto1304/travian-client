@@ -55,7 +55,7 @@ public class AsyncService implements Runnable {
 
 	@Autowired
 	private TaskClient taskClient;
-	
+
 	@Autowired
 	private BrowserService browserService;
 
@@ -127,10 +127,12 @@ public class AsyncService implements Runnable {
 		WebDriver driver = null;
 		try {
 			while (true) {
+				this.preference = taskClient.getAccountPreference(request.getUserUUID());
+				request.setMaxTask(Integer.valueOf(preference.get("maxTaskThreshold")));
+				int interval = Integer.valueOf(this.preference.get("executeInterval"));
 				Random r = new Random();
 				int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
 				pauseCount = 0; // reset pause count if incremented
-				this.preference = taskClient.getAccountPreference(request.getUserUUID());
 				celebrationMap.clear();
 				busyStatusMap.clear();
 				try {
@@ -142,35 +144,31 @@ public class AsyncService implements Runnable {
 									DesiredCapabilities.chrome());
 							driver.get("https://" + request.getHost());
 							driver.manage().window().maximize();
+							if (driver.findElement(By.name("password")) != null) {
+								driver.findElement(By.name("name")).sendKeys(request.getUserId());
+								driver.findElement(By.name("password")).sendKeys(request.getPassword());
+								driver.findElement(By.name("s1")).click();
+							}
 						}
-						if (driver.findElement(By.name("password")) != null) {
-							driver.findElement(By.name("name")).sendKeys("Thunder Bird");
-							driver.findElement(By.name("password")).sendKeys("Antaheen@4813");
-							driver.findElement(By.name("s1")).click();
-						}
+						
 						if (Log.isInfoEnabled())
 							Log.info("Cookies present::getting account info without login");
 
-						/*
-						 * if (troopTrainIntervalCount == 15) { if (Log.isInfoEnabled())
-						 * Log.info("Troop Train Count is " + troopTrainIntervalCount +
-						 * " initiate troop train"); executeTaskList(accountResponse, true,
-						 * celebrationMap); troopTrainIntervalCount = 0; } else {
-						 */
-						if (Log.isInfoEnabled())
+						executeTaskList(driver);
+						/*if (Log.isInfoEnabled())
 							Log.info("Troop Train Count is " + troopTrainIntervalCount + " skip troop train");
-						executeTaskList(driver, false, celebrationMap);
+						executeTaskList(driver);
 						troopTrainIntervalCount++;
-						/* } */
+						 } */
 
 						errorCount = 0; // Execution success, reset error count if incremented
 						if (Log.isInfoEnabled())
-							Log.info("Next call in ::" + rand * 2 + " sec");
+							Log.info("Next call in ::" + rand * interval + " sec");
 					} else {
 						if (Log.isInfoEnabled())
 							Log.info("**********Task execution paused*********");
 					}
-					Thread.sleep(2000 * rand);
+					Thread.sleep(interval*1000 * rand);
 				} catch (Exception e) {
 					if (Log.isErrorEnabled())
 						Log.error("", e);
@@ -191,38 +189,39 @@ public class AsyncService implements Runnable {
 
 	}
 
-	private void executeTaskList(WebDriver driver, boolean trainTroop,
-			Map<String, Integer> celebrationMap) {
+	private void executeTaskList(WebDriver driver) {
 		// 1. check for pending adventure
 		browserService.initiateAdventure(driver);
 		List<Village> villages = browserService.getVillageOverview(driver);
-		villages.forEach(e->{
-			browserService.executeVillageTaskes(this.request, driver, e, this.getTask(e.getVillageId()));
+		villages.forEach(e -> {
+			Task task = this.getTask(e.getVillageId());
+			Status status = browserService.executeVillageTaskes(this.request, driver, e,
+					this.getTask(e.getVillageId()));
+			if(status.getStatusCode()==400) {
+				this.skipTask(e.getVillageId(), task.getTaskId());
+			}else if(status.getStatusCode()==200) {
+				this.completeTask(e.getVillageId(), task.getTaskId());
+			}
 		});
 		// 2. get village info
-		/*List<String> villageList = null;
-		Map<String, Task> tasks = new HashMap<String, Task>();
-		List<TroopTrain> troopTasks = null;
-		villageList.forEach(e -> {
-			tasks.put(e.substring(e.indexOf("=") + 1, e.length() - 1),
-					this.getTask(e.substring(e.indexOf("=") + 1, e.length() - 1)));
-		});
-
-		List<Village> villages = this.getVillageList(villageList);
-		// attackResolution(villages); // check for any incoming attack
-		Map<String, UpgradeStatus> upgradeStatus = null;
-		if (!tasks.isEmpty()) {
-			upgradeStatus = this.findAndExecuteTask(villages, tasks, celebrationMap);
-			if (Log.isInfoEnabled())
-				Log.info("upgradeStatus:::" + upgradeStatus);
-		}
-
-		if (trainTroop) {
-			troopTasks = this.getTrainTasks();
-			this.trainTroop(villages, troopTasks, upgradeStatus);
-		}
-
-		this.resourceManagement(villages);*/
+		/*
+		 * List<String> villageList = null; Map<String, Task> tasks = new
+		 * HashMap<String, Task>(); List<TroopTrain> troopTasks = null;
+		 * villageList.forEach(e -> { tasks.put(e.substring(e.indexOf("=") + 1,
+		 * e.length() - 1), this.getTask(e.substring(e.indexOf("=") + 1, e.length() -
+		 * 1))); });
+		 * 
+		 * List<Village> villages = this.getVillageList(villageList); //
+		 * attackResolution(villages); // check for any incoming attack Map<String,
+		 * UpgradeStatus> upgradeStatus = null; if (!tasks.isEmpty()) { upgradeStatus =
+		 * this.findAndExecuteTask(villages, tasks, celebrationMap); if
+		 * (Log.isInfoEnabled()) Log.info("upgradeStatus:::" + upgradeStatus); }
+		 * 
+		 * if (trainTroop) { troopTasks = this.getTrainTasks();
+		 * this.trainTroop(villages, troopTasks, upgradeStatus); }
+		 * 
+		 * this.resourceManagement(villages);
+		 */
 
 	}
 
@@ -326,7 +325,6 @@ public class AsyncService implements Runnable {
 		this.updateTroopCount(troopTrainResponse);
 
 	}
-
 
 	private List<Village> getVillageList(List<String> villageList) {
 		VillageInfoRequest villageInfoRequest = new VillageInfoRequest();

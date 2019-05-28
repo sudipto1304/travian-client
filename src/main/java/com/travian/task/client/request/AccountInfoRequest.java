@@ -9,6 +9,7 @@ import lombok.ToString;
 @ToString
 public class AccountInfoRequest extends GameWorld implements Serializable{
 	private String password;
+	private int maxTask;
 	
 
 }
