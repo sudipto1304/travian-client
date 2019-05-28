@@ -1,5 +1,7 @@
 package com.travian.task.client.service;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -9,6 +11,10 @@ import java.util.Random;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +55,9 @@ public class AsyncService implements Runnable {
 
 	@Autowired
 	private TaskClient taskClient;
+	
+	@Autowired
+	private BrowserService browserService;
 
 	private AccountInfoRequest request;
 	private GameWorld gameWorld = new GameWorld();
@@ -66,7 +75,7 @@ public class AsyncService implements Runnable {
 	private ServiceClient serviceClient;
 
 	public Task getTask(String villageId) {
-		Task task = taskClient.getTask(this.gameWorld.getUserUUID(), villageId);
+		Task task = taskClient.getTask(this.request.getUserUUID(), villageId);
 		try {
 			return task;
 		} catch (Exception e) {
@@ -103,90 +112,95 @@ public class AsyncService implements Runnable {
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
 	}
 
-	public void executeTask() throws InterruptedException {
+	public void executeTask() throws InterruptedException, MalformedURLException {
 		int pauseCount = 0;
 		int errorCount = 0;
 		int troopTrainIntervalCount = 0;
 		Map<String, Integer> celebrationMap = new HashMap<String, Integer>();
-
-		while (true) {
-			Random r = new Random();
-			int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
-			pauseCount = 0; // reset pause count if incremented
-			this.preference = taskClient.getAccountPreference(request.getUserUUID());
-			celebrationMap.clear();
-			busyStatusMap.clear();
-			try {
-				if (Boolean.valueOf(this.preference.get("executionEnable"))) {
-					if (Log.isInfoEnabled())
-						Log.info("**********Task execution start/resumed*********");
-					AccountInfoResponse accountResponse = null;
-					if (gameWorld.getCookies() == null) {
+		WebDriver driver = null;
+		try {
+			while (true) {
+				Random r = new Random();
+				int rand = r.ints(60, (120 + 1)).limit(1).findFirst().getAsInt();
+				pauseCount = 0; // reset pause count if incremented
+				this.preference = taskClient.getAccountPreference(request.getUserUUID());
+				celebrationMap.clear();
+				busyStatusMap.clear();
+				try {
+					if (Boolean.valueOf(this.preference.get("executionEnable"))) {
 						if (Log.isInfoEnabled())
-							Log.info("Cookies not present::getting account info with login");
-						accountResponse = serviceClient.getAccountInfo(request);
-						if (Log.isDebugEnabled())
-							Log.debug("received AccountInfoResponse:::" + accountResponse);
-						gameWorld.setCookies(accountResponse.getCookies());
-						gameWorld.setHost(request.getHost());
-						gameWorld.setUserId(request.getUserId());
-						gameWorld.setUserUUID(request.getUserUUID());
-						if (Log.isInfoEnabled())
-							Log.info("Game World Data:::" + gameWorld);
-					} else {
+							Log.info("**********Task execution start/resumed*********");
+						if (driver == null) {
+							driver = new RemoteWebDriver(new URL("http://127.0.0.1:9515"),
+									DesiredCapabilities.chrome());
+							driver.get("https://" + request.getHost());
+							driver.manage().window().maximize();
+						}
+						if (driver.findElement(By.name("password")) != null) {
+							driver.findElement(By.name("name")).sendKeys("Thunder Bird");
+							driver.findElement(By.name("password")).sendKeys("Antaheen@4813");
+							driver.findElement(By.name("s1")).click();
+						}
 						if (Log.isInfoEnabled())
 							Log.info("Cookies present::getting account info without login");
-						accountResponse = serviceClient.getAccountInfo(gameWorld);
-					}
 
-					if (troopTrainIntervalCount == 15) {
-						if (Log.isInfoEnabled())
-							Log.info("Troop Train Count is " + troopTrainIntervalCount + " initiate troop train");
-						executeTaskList(accountResponse, true, celebrationMap);
-						troopTrainIntervalCount = 0;
-					} else {
+						/*
+						 * if (troopTrainIntervalCount == 15) { if (Log.isInfoEnabled())
+						 * Log.info("Troop Train Count is " + troopTrainIntervalCount +
+						 * " initiate troop train"); executeTaskList(accountResponse, true,
+						 * celebrationMap); troopTrainIntervalCount = 0; } else {
+						 */
 						if (Log.isInfoEnabled())
 							Log.info("Troop Train Count is " + troopTrainIntervalCount + " skip troop train");
-						executeTaskList(accountResponse, false, celebrationMap);
+						executeTaskList(driver, false, celebrationMap);
 						troopTrainIntervalCount++;
-					}
+						/* } */
 
-					errorCount = 0; // Execution success, reset error count if incremented
-					if (Log.isInfoEnabled())
-						Log.info("Next call in ::" + rand * 2 + " sec");
-				} else {
-					if (Log.isInfoEnabled())
-						Log.info("**********Task execution paused*********");
-				}
-				Thread.sleep(2000 * rand);
-			} catch (Exception e) {
-				if (Log.isErrorEnabled())
-					Log.error("", e);
-				errorCount++;
-				if (errorCount >= 5) {
+						errorCount = 0; // Execution success, reset error count if incremented
+						if (Log.isInfoEnabled())
+							Log.info("Next call in ::" + rand * 2 + " sec");
+					} else {
+						if (Log.isInfoEnabled())
+							Log.info("**********Task execution paused*********");
+					}
+					Thread.sleep(2000 * rand);
+				} catch (Exception e) {
 					if (Log.isErrorEnabled())
-						Log.error("Error count 5. waiting for 5 mins");
-					Thread.sleep(1000 * 60 * 5);
+						Log.error("", e);
+					errorCount++;
+					if (errorCount >= 5) {
+						if (Log.isErrorEnabled())
+							Log.error("Error count 5. waiting for 5 mins");
+						Thread.sleep(1000 * 60 * 5);
+					}
+					gameWorld.setCookies(null);
+
 				}
-				gameWorld.setCookies(null);
 
 			}
-
+		} finally {
+			driver.quit();
 		}
 
 	}
 
-	private void executeTaskList(AccountInfoResponse accountResponse, boolean trainTroop,
+	private void executeTaskList(WebDriver driver, boolean trainTroop,
 			Map<String, Integer> celebrationMap) {
 		// 1. check for pending adventure
-		this.initiateAdventure(accountResponse);
+		browserService.initiateAdventure(driver);
+		List<Village> villages = browserService.getVillageOverview(driver);
+		villages.forEach(e->{
+			browserService.executeVillageTaskes(this.request, driver, e, this.getTask(e.getVillageId()));
+		});
 		// 2. get village info
-		List<String> villageList = accountResponse.getVillages().stream().map(p -> p.getLink())
-				.collect(Collectors.toList());
+		/*List<String> villageList = null;
 		Map<String, Task> tasks = new HashMap<String, Task>();
 		List<TroopTrain> troopTasks = null;
 		villageList.forEach(e -> {
@@ -195,7 +209,7 @@ public class AsyncService implements Runnable {
 		});
 
 		List<Village> villages = this.getVillageList(villageList);
-		//attackResolution(villages); // check for any incoming attack
+		// attackResolution(villages); // check for any incoming attack
 		Map<String, UpgradeStatus> upgradeStatus = null;
 		if (!tasks.isEmpty()) {
 			upgradeStatus = this.findAndExecuteTask(villages, tasks, celebrationMap);
@@ -208,7 +222,7 @@ public class AsyncService implements Runnable {
 			this.trainTroop(villages, troopTasks, upgradeStatus);
 		}
 
-		this.resourceManagement(villages);
+		this.resourceManagement(villages);*/
 
 	}
 
@@ -313,21 +327,6 @@ public class AsyncService implements Runnable {
 
 	}
 
-	private void initiateAdventure(AccountInfoResponse accountResponse) {
-		if (Log.isInfoEnabled())
-			Log.info("Pending adventure::" + accountResponse.getPendingAdventure());
-		if (accountResponse.getPendingAdventure() > 0 && "in home village".equals(accountResponse.getHeroStatus())) {
-			if (Log.isInfoEnabled())
-				Log.info("Pending adventure count is ::" + accountResponse.getPendingAdventure()
-						+ "--Hero is in home::Initiating adventure");
-			List<Adventure> adventures = serviceClient.getAdventures(this.gameWorld);
-			Status status = AccountUtils.initiateAdventure(adventures, serviceClient, this.gameWorld);
-			if ("SUCCESS".equals(status.getStatus())) {
-				if (Log.isInfoEnabled())
-					Log.info("Adventure initiated");
-			}
-		}
-	}
 
 	private List<Village> getVillageList(List<String> villageList) {
 		VillageInfoRequest villageInfoRequest = new VillageInfoRequest();
@@ -523,12 +522,13 @@ public class AsyncService implements Runnable {
 					Log.info(e.getSourceVillage() + " is not busy::Checking schedule transfer time");
 				TradeRouteRequest transferRequest = new TradeRouteRequest();
 				long timeStampDiff = new Date().getTime() - Long.valueOf(e.getLastUpdateTime());
-				int min = (int) (timeStampDiff / (1000*60));
+				int min = (int) (timeStampDiff / (1000 * 60));
 				if (Log.isInfoEnabled())
-					Log.info(e.getSourceVillage() +" Last updated "+min+" min ago");
+					Log.info(e.getSourceVillage() + " Last updated " + min + " min ago");
 				if (min >= e.getInterval()) {
 					if (Log.isInfoEnabled())
-						Log.info("Last updated "+min+" min ago::interval "+e.getInterval()+" :::Initiating transfer");
+						Log.info("Last updated " + min + " min ago::interval " + e.getInterval()
+								+ " :::Initiating transfer");
 					transferRequest.setGameWorld(this.gameWorld);
 					transferRequest.setClay(String.valueOf(e.getClay()));
 					transferRequest.setWood(String.valueOf(e.getWood()));
@@ -538,91 +538,91 @@ public class AsyncService implements Runnable {
 					transferRequest.setSourceVillage(e.getSourceVillage());
 					transferRequest.setNumberOfDelivery("1");
 					if (Log.isInfoEnabled())
-						Log.info("Transfer request for"+e.getSourceVillage()+" is::"+transferRequest);
-					Status status=null;
+						Log.info("Transfer request for" + e.getSourceVillage() + " is::" + transferRequest);
+					Status status = null;
 					try {
 						status = serviceClient.transferResource(transferRequest);
 					} catch (Exception e2) {
 						if (Log.isErrorEnabled())
-							Log.error("transfer Failed for "+e.getTransactionId());
+							Log.error("transfer Failed for " + e.getTransactionId());
 						taskClient.updateTrades(e.getTransactionId());
 						return;
 					}
-					
+
 					if (Log.isInfoEnabled())
-						Log.info("Transfer status for ::"+e.getSourceVillage()+" is::"+status);
-					if(status.getStatusCode()==200) {
+						Log.info("Transfer status for ::" + e.getSourceVillage() + " is::" + status);
+					if (status.getStatusCode() == 200) {
 						taskClient.updateTrades(e.getTransactionId());
 					}
-				}else {
+				} else {
 					if (Log.isInfoEnabled())
-						Log.info("Last updated "+min+" min ago::interval "+e.getInterval()+" :::transfer skip");
+						Log.info("Last updated " + min + " min ago::interval " + e.getInterval() + " :::transfer skip");
 				}
 
-			}else {
+			} else {
 				if (Log.isInfoEnabled())
-					Log.info(e.getSourceVillage()+ " has busy status:: no transfer");
+					Log.info(e.getSourceVillage() + " has busy status:: no transfer");
 			}
 		});
-		
+
 		this.safeTransfer(villages);
 
 	}
-	
+
 	private void safeTransfer(List<Village> villages) {
-		villages.forEach(e->{
+		villages.forEach(e -> {
 			boolean transferRequired = false;
 			TradeRouteRequest transferRequest = new TradeRouteRequest();
 			int wareHouseCapacity = e.getResource().getWarehouseCapacity();
 			int granCapacity = e.getResource().getGranaryCapacity();
-			int wareHouseCapacity85 = (wareHouseCapacity*85)/100;
-			int granCapacity85 = (granCapacity*85)/100;
-			int woodPercent = (e.getResource().getWood()/wareHouseCapacity)*100;
-			int ironPercent = (e.getResource().getIron()/wareHouseCapacity)*100;
-			int clayPercent = (e.getResource().getClay()/wareHouseCapacity)*100;
-			int cropPercent = (e.getResource().getCrop()/granCapacity)*100;
-			if(woodPercent>85) {
-				transferRequired=true;
+			int wareHouseCapacity85 = (wareHouseCapacity * 85) / 100;
+			int granCapacity85 = (granCapacity * 85) / 100;
+			int woodPercent = (e.getResource().getWood() / wareHouseCapacity) * 100;
+			int ironPercent = (e.getResource().getIron() / wareHouseCapacity) * 100;
+			int clayPercent = (e.getResource().getClay() / wareHouseCapacity) * 100;
+			int cropPercent = (e.getResource().getCrop() / granCapacity) * 100;
+			if (woodPercent > 85) {
+				transferRequired = true;
 				if (Log.isInfoEnabled())
-					Log.info(e.getVillageId()+ " woodPercent::"+woodPercent);
-				transferRequest.setWood(String.valueOf(e.getResource().getWood()-wareHouseCapacity85));
+					Log.info(e.getVillageId() + " woodPercent::" + woodPercent);
+				transferRequest.setWood(String.valueOf(e.getResource().getWood() - wareHouseCapacity85));
 			}
-			if(clayPercent>85) {
-				transferRequired=true;
+			if (clayPercent > 85) {
+				transferRequired = true;
 				if (Log.isInfoEnabled())
-					Log.info(e.getVillageId()+ " clayPercent::"+clayPercent);
-				transferRequest.setClay(String.valueOf(e.getResource().getClay()-wareHouseCapacity85));
+					Log.info(e.getVillageId() + " clayPercent::" + clayPercent);
+				transferRequest.setClay(String.valueOf(e.getResource().getClay() - wareHouseCapacity85));
 			}
-			if(ironPercent>85) {
-				transferRequired=true;
+			if (ironPercent > 85) {
+				transferRequired = true;
 				if (Log.isInfoEnabled())
-					Log.info(e.getVillageId()+ " ironPercent::"+ironPercent);
-				transferRequest.setIron(String.valueOf(e.getResource().getIron()-wareHouseCapacity85));
+					Log.info(e.getVillageId() + " ironPercent::" + ironPercent);
+				transferRequest.setIron(String.valueOf(e.getResource().getIron() - wareHouseCapacity85));
 			}
-			if(cropPercent>85) {
-				transferRequired=true;
+			if (cropPercent > 85) {
+				transferRequired = true;
 				if (Log.isInfoEnabled())
-					Log.info(e.getVillageId()+ " cropPercent::"+cropPercent);
-				transferRequest.setCrop(String.valueOf(e.getResource().getCrop()-granCapacity85));
+					Log.info(e.getVillageId() + " cropPercent::" + cropPercent);
+				transferRequest.setCrop(String.valueOf(e.getResource().getCrop() - granCapacity85));
 			}
 			transferRequest.setDestinationVillage(this.preference.get("resourceTransferVillage"));
 			transferRequest.setSourceVillage(e.getVillageId());
 			transferRequest.setNumberOfDelivery("1");
 			transferRequest.setGameWorld(this.gameWorld);
-			if(transferRequired) {
+			if (transferRequired) {
 				if (Log.isInfoEnabled())
-					Log.info("Transfer request for"+e.getVillageId()+" is::"+transferRequest);
+					Log.info("Transfer request for" + e.getVillageId() + " is::" + transferRequest);
 				try {
 					Status status = serviceClient.transferResource(transferRequest);
 					if (Log.isInfoEnabled())
-						Log.info("Transfer success for "+e.getVillageId());
+						Log.info("Transfer success for " + e.getVillageId());
 				} catch (Exception e2) {
 					if (Log.isErrorEnabled())
-						Log.error("transfer Failed for "+e.getVillageId());
+						Log.error("transfer Failed for " + e.getVillageId());
 					return;
 				}
 			}
-			
+
 		});
 	}
 }

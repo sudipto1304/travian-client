@@ -49,6 +49,7 @@ dependencies {
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.9.1'
     providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
     annotationProcessor("org.projectlombok:lombok")
+    implementation group: 'org.seleniumhq.selenium', name: 'selenium-java', version: '2.41.0'
 }
 
 dependencyManagement {
